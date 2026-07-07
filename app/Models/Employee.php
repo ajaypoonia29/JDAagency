@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\Helpers\FormHelper;
 use App\Traits\HasCreatedUpdatedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -73,10 +74,10 @@ class Employee extends Model
 
     protected $casts = [
 
-        'joining_date'   => 'date',
-        'date_of_birth'  => 'date',
-        'salary'         => 'decimal:2',
-        'is_active'      => 'boolean',
+        'joining_date'  => 'date',
+        'date_of_birth' => 'date',
+        'salary'        => 'decimal:2',
+        'is_active'     => 'boolean',
     ];
 
     /*
@@ -108,5 +109,32 @@ class Employee extends Model
     public function updater()
     {
         return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Helpers
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Generate the next employee code.
+     *
+     * Example:
+     * EMP-0001
+     * EMP-0002
+     * EMP-0003
+     */
+    public static function nextEmployeeCode(): string
+    {
+        $lastEmployee = self::orderByDesc('id')->first();
+
+        $nextNumber = 1;
+
+        if ($lastEmployee && ! empty($lastEmployee->employee_code)) {
+            $nextNumber = ((int) substr($lastEmployee->employee_code, -4)) + 1;
+        }
+
+        return FormHelper::generateCode('EMP', $nextNumber);
     }
 }
