@@ -1,8 +1,12 @@
-\# AgencyOS Development Standards
+\# AgencyOS Engineering \& UI Standards
 
 
 
-Version: v0.1.0
+\## Version
+
+
+
+Current Version: 1.0
 
 
 
@@ -10,11 +14,7 @@ Version: v0.1.0
 
 
 
-\# Core Principles
-
-
-
-AgencyOS is built as a modular CRM + ERP platform.
+\# General Rules
 
 
 
@@ -22,311 +22,57 @@ Every module must follow the same architecture.
 
 
 
+Model
+
+Migration
+
+Filament Resource
+
+Validation
+
+Relationships
+
+Permissions
+
+Documentation
+
+
+
 No shortcuts.
 
 
 
-No duplicated business logic.
-
-
-
-No editing vendor files.
-
-
-
 \---
 
 
 
-\# Development Order
+\# Form Layout Standard
 
 
 
-Every module must be built in this order.
+Every Filament form must use Sections.
 
 
 
-1\. Migration
+Order:
 
-2\. Model
 
-3\. Relationships
 
-4\. Seeder (if required)
+1\. Basic Information
 
-5\. Filament Resource
+2\. Business Information
 
-6\. Business Logic
+3\. Contact Information
 
-7\. Testing
+4\. Documents
 
-8\. Git Commit
+5\. Settings
 
-9\. Git Push
+6\. Audit (read only)
 
 
 
-\---
-
-
-
-\# Folder Structure
-
-
-
-app/
-
-
-
-Actions/
-
-
-
-Services/
-
-
-
-Helpers/
-
-
-
-Observers/
-
-
-
-Policies/
-
-
-
-Events/
-
-
-
-Listeners/
-
-
-
-Models/
-
-
-
-Notifications/
-
-
-
-Filament/
-
-
-
-\---
-
-
-
-\# Business Logic
-
-
-
-Business logic must NEVER be written inside:
-
-
-
-Controllers
-
-
-
-Filament Resources
-
-
-
-Blade Views
-
-
-
-Business logic belongs inside:
-
-
-
-Services
-
-
-
-Actions
-
-
-
-Observers
-
-
-
-\---
-
-
-
-\# Database Rules
-
-
-
-Every operational table should contain:
-
-
-
-created\_by
-
-
-
-updated\_by
-
-
-
-timestamps
-
-
-
-Soft Deletes (only where required)
-
-
-
-\---
-
-
-
-\# Permission Naming
-
-
-
-Module.Action
-
-
-
-Examples
-
-
-
-employees.view
-
-
-
-employees.create
-
-
-
-employees.edit
-
-
-
-employees.delete
-
-
-
-leads.assign
-
-
-
-payments.verify
-
-
-
-invoices.share
-
-
-
-\---
-
-
-
-\# Filament Resource Standard
-
-
-
-Navigation
-
-
-
-Navigation Group
-
-
-
-Navigation Sort
-
-
-
-Navigation Icon
-
-
-
-Record Title
-
-
-
-Every resource must define these.
-
-
-
-\---
-
-
-
-\# Form Standard
-
-
-
-Large forms must use Tabs.
-
-
-
-General
-
-
-
-Business
-
-
-
-Documents
-
-
-
-Communication
-
-
-
-Settings
-
-
-
-Notes
-
-
-
-Employee module:
-
-
-
-General
-
-
-
-Employment
-
-
-
-Address
-
-
-
-Emergency Contact
-
-
-
-Documents
-
-
-
-Account
-
-
-
-Notes
+Never mix unrelated fields inside one section.
 
 
 
@@ -338,39 +84,39 @@ Notes
 
 
 
-Every table should include:
+Every table must include:
 
 
 
-Search
+✔ Search
 
 
 
-Filters
+✔ Sort
 
 
 
-Sorting
+✔ Filters
 
 
 
-Bulk Actions
+✔ Bulk Actions
 
 
 
-Status Badge
+✔ Toggle Columns
 
 
 
-Created Date
+✔ Status Badge
 
 
 
-Updated Date
+✔ Created Date
 
 
 
-Export (later)
+✔ Updated Date
 
 
 
@@ -378,63 +124,31 @@ Export (later)
 
 
 
-\# Naming
+\# Database Standard
 
 
 
-Models
+Use foreign keys.
 
 
 
-Singular
+Never store repeated text.
 
 
 
-Employee
+Example:
 
 
 
-Customer
+department\_id
 
 
 
-Invoice
+NOT
 
 
 
-Database
-
-
-
-Plural
-
-
-
-employees
-
-
-
-customers
-
-
-
-invoices
-
-
-
-Resources
-
-
-
-EmployeeResource
-
-
-
-CustomerResource
-
-
-
-InvoiceResource
+department
 
 
 
@@ -442,39 +156,27 @@ InvoiceResource
 
 
 
-\# Git Workflow
+\# Relationships
 
 
 
-Feature Branch
+belongsTo
 
 
 
-↓
+hasMany
 
 
 
-Commit
+belongsToMany
 
 
 
-↓
+Always use Eloquent relationships.
 
 
 
-Push
-
-
-
-↓
-
-
-
-Merge into main
-
-
-
-Never commit unfinished code.
+Never manually join tables.
 
 
 
@@ -482,51 +184,39 @@ Never commit unfinished code.
 
 
 
-\# UI Standard
+\# Uploads
 
 
 
-Use consistent spacing.
+Always use FileUpload.
 
 
 
-Use section headings.
+Store inside:
 
 
 
-Use icons.
+storage/app/public
 
 
 
-Avoid long vertical forms.
+Organize folders by module.
 
 
 
-Prefer Tabs over collapsible sections.
+Example:
 
 
 
-\---
+employees/
 
 
 
-\# Security
+customers/
 
 
 
-Use Spatie Roles \& Permissions.
-
-
-
-Never hardcode permissions.
-
-
-
-Never check role names directly.
-
-
-
-Always use permissions.
+projects/
 
 
 
@@ -534,15 +224,35 @@ Always use permissions.
 
 
 
-\# Audit
+\# Status
 
 
 
-Every important action should be logged.
+Every master module should include:
 
 
 
-Future modules will use Activity Log.
+is\_active
+
+
+
+SoftDeletes
+
+
+
+created\_by
+
+
+
+updated\_by
+
+
+
+created\_at
+
+
+
+updated\_at
 
 
 
@@ -550,79 +260,27 @@ Future modules will use Activity Log.
 
 
 
-\# Future Modules
+\# Documentation
 
 
 
-Company Profile
+Every completed sprint requires:
 
 
 
-Employees
+Git Commit
 
 
 
-Services
+Git Push
 
 
 
-Packages
+Database Documentation Update (if schema changed)
 
 
 
-Add-ons
-
-
-
-Leads
-
-
-
-Customers
-
-
-
-Quotations
-
-
-
-Payments
-
-
-
-Invoices
-
-
-
-Receipts
-
-
-
-Projects
-
-
-
-Tasks
-
-
-
-Documents
-
-
-
-Reports
-
-
-
-Renewals
-
-
-
-Settings
-
-
-
-Dashboard
+CHANGELOG Update (for major architectural changes)
 
 
 
@@ -630,9 +288,33 @@ Dashboard
 
 
 
-AgencyOS Engineering Standard
+\# Coding Style
 
 
 
-Locked
+Never duplicate code.
+
+
+
+Prefer Services over Controllers for business logic.
+
+
+
+Keep Resources clean.
+
+
+
+Business logic belongs inside Services.
+
+
+
+\---
+
+
+
+\# Goal
+
+
+
+Every AgencyOS module should look and behave consistently.
 
