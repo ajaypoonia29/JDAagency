@@ -52,15 +52,21 @@ class Quotation extends Model
         'status',
 
         /*
-        |--------------------------------------------------------------------------
-        | Financials
-        |--------------------------------------------------------------------------
-        */
+|--------------------------------------------------------------------------
+| Financials
+|--------------------------------------------------------------------------
+*/
 
-        'subtotal',
-        'discount',
-        'tax',
-        'grand_total',
+'subtotal',
+
+'discount_type',
+'discount_value',
+
+'tax_applicable',
+'tax_percentage',
+
+'tax',
+'grand_total',
 
         /*
         |--------------------------------------------------------------------------
@@ -95,13 +101,22 @@ class Quotation extends Model
 
         'valid_until' => 'date',
 
-        'subtotal' => 'decimal:2',
+        /*
+|--------------------------------------------------------------------------
+| Financials
+|--------------------------------------------------------------------------
+*/
 
-        'discount' => 'decimal:2',
+'subtotal'         => 'decimal:2',
 
-        'tax' => 'decimal:2',
+'discount_type'    => 'string',
+'discount_value'   => 'decimal:2',
 
-        'grand_total' => 'decimal:2',
+'tax_applicable'   => 'boolean',
+'tax_percentage'   => 'decimal:2',
+
+'tax'              => 'decimal:2',
+'grand_total'      => 'decimal:2',
 
         'is_active' => 'boolean',
     ];

@@ -15,6 +15,7 @@ use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use App\Support\QuotationCalculator;
 
 class QuotationForm
 {
@@ -31,21 +32,61 @@ protected static function calculateLineTotal(Get $get, Set $set): void
 
 $set('line_total', $lineTotal);
 
-self::calculateSubtotal($get, $set);
+self::calculateFinancialSummary($get, $set);
 }
 
 
 
-protected static function calculateSubtotal(Get $get, Set $set): void
+protected static function calculateFinancialSummary(
+    Get $get,
+    Set $set,
+    bool $fromRepeater = true,
+): void
+
+
 {
+   if ($fromRepeater) {
+
     $items = $get('../../items') ?? [];
 
-    $subtotal = collect($items)
-        ->sum(fn ($item) => (float) ($item['line_total'] ?? 0));
+    $subtotalPath = '../../subtotal';
+    $taxPath = '../../tax';
+    $grandTotalPath = '../../grand_total';
 
-    $set('../../subtotal', $subtotal);
+    $discountType = $get('../../discount_type') ?? 'fixed';
+    $discountValue = (float) ($get('../../discount_value') ?? 0);
+
+    $taxApplicable = (bool) ($get('../../tax_applicable') ?? false);
+    $taxPercentage = (float) ($get('../../tax_percentage') ?? 18);
+
+} else {
+
+    $items = $get('items') ?? [];
+
+    $subtotalPath = 'subtotal';
+    $taxPath = 'tax';
+    $grandTotalPath = 'grand_total';
+
+    $discountType = $get('discount_type') ?? 'fixed';
+    $discountValue = (float) ($get('discount_value') ?? 0);
+
+    $taxApplicable = (bool) ($get('tax_applicable') ?? false);
+    $taxPercentage = (float) ($get('tax_percentage') ?? 18);
+
 }
 
+$result = QuotationCalculator::calculate(
+    items: $items,
+    discountType: $discountType,
+    discountValue: $discountValue,
+    taxApplicable: $taxApplicable,
+    taxPercentage: $taxPercentage,
+);
+
+$set($subtotalPath, $result['subtotal']);
+$set($taxPath, $result['tax']);
+$set($grandTotalPath, $result['grand_total']);
+}
     public static function configure(Schema $schema): Schema
     {
         return $schema
@@ -183,37 +224,73 @@ protected static function calculateSubtotal(Get $get, Set $set): void
     ]),
 
                 Section::make('Financial Summary')
-                    ->schema([
+    ->schema([
 
-                        Grid::make(4)
-                            ->schema([
+        Grid::make(6)
+            ->schema([
 
-                                TextInput::make('subtotal')
+                TextInput::make('subtotal')
+                    ->live()
+                    ->numeric()
+                    ->prefix('₹')
+                    ->default(0)
+                    ->readOnly(),
+
+                Select::make('discount_type')
+                    ->label('Discount Type')
+                    ->options([
+                        'fixed' => 'Fixed (₹)',
+                        'percentage' => 'Percentage (%)',
+                    ])
+                    ->default('fixed')
+->live()
+->afterStateUpdated(
+    fn (Get $get, Set $set) =>
+        self::calculateFinancialSummary($get, $set, false)
+),
+
+                TextInput::make('discount_value')
+                    ->label('Discount')
+                    ->numeric()
+                    ->default(0)
+->live()
+->afterStateUpdated(
+    fn (Get $get, Set $set) =>
+        self::calculateFinancialSummary($get, $set, false)
+),
+
+                Toggle::make('tax_applicable')
+    ->label('Apply GST')
     ->live()
-    ->numeric()
-    ->prefix('₹')
-    ->default(0)
-    ->readOnly(),
+    ->afterStateUpdated(
+    fn (Get $get, Set $set) =>
+        self::calculateFinancialSummary($get, $set, false)
+),
+           TextInput::make('tax_percentage')
+                    ->label('GST %')
+                    ->numeric()
+                    ->default(18)
+                    ->suffix('%')
+                    ->live()
+->afterStateUpdated(
+    fn (Get $get, Set $set) =>
+        self::calculateFinancialSummary($get, $set, false)
+)
+->visible(fn (Get $get) => $get('tax_applicable')),
 
-                                TextInput::make('discount')
-                                    ->numeric()
-                                    ->prefix('₹')
-                                    ->default(0),
+                TextInput::make('tax')
+                    ->numeric()
+                    ->prefix('₹')
+                    ->readOnly(),
 
-                                TextInput::make('tax')
-                                    ->numeric()
-                                    ->prefix('₹')
-                                    ->default(0),
+                TextInput::make('grand_total')
+                    ->numeric()
+                    ->prefix('₹')
+                    ->readOnly(),
 
-                                TextInput::make('grand_total')
-                                    ->numeric()
-                                    ->prefix('₹')
-                                    ->default(0)
-                                    ->readOnly(),
+            ]),
 
-                            ]),
-
-                    ]),
+    ]),
 
                 Section::make('Notes')
                     ->schema([
