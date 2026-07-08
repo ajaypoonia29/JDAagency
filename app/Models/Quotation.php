@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Lead extends Model
+class Quotation extends Model
 {
     use HasFactory;
     use SoftDeletes;
@@ -21,63 +21,46 @@ class Lead extends Model
         |--------------------------------------------------------------------------
         */
 
-        'lead_code',
-        'lead_status',
-        'priority',
+        'quotation_code',
 
         /*
         |--------------------------------------------------------------------------
-        | Company
+        | Relationships
         |--------------------------------------------------------------------------
         */
 
-        'company_name',
-        'contact_person',
-        'designation',
-
-        /*
-        |--------------------------------------------------------------------------
-        | Contact
-        |--------------------------------------------------------------------------
-        */
-
-        'email',
-        'phone',
-        'whatsapp',
-        'website',
-
-        /*
-        |--------------------------------------------------------------------------
-        | Business
-        |--------------------------------------------------------------------------
-        */
-
-        'industry',
-        'business_type',
-        'company_size',
-
-        /*
-        |--------------------------------------------------------------------------
-        | Business Location
-        |--------------------------------------------------------------------------
-        */
-
-        'business_address',
-        'latitude',
-        'longitude',
-        'google_maps_link',
-
-        /*
-        |--------------------------------------------------------------------------
-        | Sales
-        |--------------------------------------------------------------------------
-        */
-
+        'lead_id',
+        'customer_id',
+        'meeting_id',
         'assigned_employee_id',
-        'lead_source',
-        'estimated_value',
-        'expected_closing_date',
-        'next_follow_up_date',
+
+        /*
+        |--------------------------------------------------------------------------
+        | Dates
+        |--------------------------------------------------------------------------
+        */
+
+        'quotation_date',
+        'valid_until',
+
+        /*
+        |--------------------------------------------------------------------------
+        | Status
+        |--------------------------------------------------------------------------
+        */
+
+        'status',
+
+        /*
+        |--------------------------------------------------------------------------
+        | Financials
+        |--------------------------------------------------------------------------
+        */
+
+        'subtotal',
+        'discount',
+        'tax',
+        'grand_total',
 
         /*
         |--------------------------------------------------------------------------
@@ -85,16 +68,8 @@ class Lead extends Model
         |--------------------------------------------------------------------------
         */
 
-        'requirements_summary',
+        'customer_notes',
         'internal_notes',
-
-        /*
-        |--------------------------------------------------------------------------
-        | Conversion
-        |--------------------------------------------------------------------------
-        */
-
-        'converted_customer_id',
 
         /*
         |--------------------------------------------------------------------------
@@ -116,13 +91,19 @@ class Lead extends Model
 
     protected $casts = [
 
-        'estimated_value'       => 'decimal:2',
+        'quotation_date' => 'date',
 
-        'expected_closing_date' => 'date',
+        'valid_until' => 'date',
 
-        'next_follow_up_date'   => 'date',
+        'subtotal' => 'decimal:2',
 
-        'is_active'             => 'boolean',
+        'discount' => 'decimal:2',
+
+        'tax' => 'decimal:2',
+
+        'grand_total' => 'decimal:2',
+
+        'is_active' => 'boolean',
     ];
 
     /*
@@ -131,14 +112,29 @@ class Lead extends Model
     |--------------------------------------------------------------------------
     */
 
+    public function lead()
+    {
+        return $this->belongsTo(Lead::class);
+    }
+
+    public function customer()
+    {
+        return $this->belongsTo(Customer::class);
+    }
+
+    public function meeting()
+    {
+        return $this->belongsTo(Meeting::class);
+    }
+
     public function assignedEmployee()
     {
         return $this->belongsTo(Employee::class, 'assigned_employee_id');
     }
 
-    public function convertedCustomer()
+    public function items()
     {
-        return $this->belongsTo(Customer::class, 'converted_customer_id');
+        return $this->hasMany(QuotationItem::class);
     }
 
     public function creator()
@@ -157,13 +153,18 @@ class Lead extends Model
     |--------------------------------------------------------------------------
     */
 
-    public static function nextLeadCode(): string
+    public static function nextQuotationCode(): string
     {
-        return 'LEAD-' . str_pad(
-            static::withTrashed()->count() + 1,
-            4,
-            '0',
-            STR_PAD_LEFT
-        );
+        $lastQuotation = self::withTrashed()
+            ->orderByDesc('id')
+            ->first();
+
+        $nextNumber = 1;
+
+        if ($lastQuotation && ! empty($lastQuotation->quotation_code)) {
+            $nextNumber = ((int) substr($lastQuotation->quotation_code, -4)) + 1;
+        }
+
+        return 'QT-' . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
     }
 }

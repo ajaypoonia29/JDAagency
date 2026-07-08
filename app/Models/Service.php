@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
-class Lead extends Model
+class Service extends Model
 {
     use HasFactory;
     use SoftDeletes;
@@ -21,80 +21,35 @@ class Lead extends Model
         |--------------------------------------------------------------------------
         */
 
-        'lead_code',
-        'lead_status',
-        'priority',
+        'service_code',
+        'service_name',
+        'category',
 
         /*
         |--------------------------------------------------------------------------
-        | Company
+        | Service Information
         |--------------------------------------------------------------------------
         */
 
-        'company_name',
-        'contact_person',
-        'designation',
+        'description',
+        'standard_price',
 
         /*
         |--------------------------------------------------------------------------
-        | Contact
+        | GST
         |--------------------------------------------------------------------------
         */
 
-        'email',
-        'phone',
-        'whatsapp',
-        'website',
+        'gst_applicable',
+        'gst_percentage',
 
         /*
         |--------------------------------------------------------------------------
-        | Business
+        | Delivery
         |--------------------------------------------------------------------------
         */
 
-        'industry',
-        'business_type',
-        'company_size',
-
-        /*
-        |--------------------------------------------------------------------------
-        | Business Location
-        |--------------------------------------------------------------------------
-        */
-
-        'business_address',
-        'latitude',
-        'longitude',
-        'google_maps_link',
-
-        /*
-        |--------------------------------------------------------------------------
-        | Sales
-        |--------------------------------------------------------------------------
-        */
-
-        'assigned_employee_id',
-        'lead_source',
-        'estimated_value',
-        'expected_closing_date',
-        'next_follow_up_date',
-
-        /*
-        |--------------------------------------------------------------------------
-        | Notes
-        |--------------------------------------------------------------------------
-        */
-
-        'requirements_summary',
-        'internal_notes',
-
-        /*
-        |--------------------------------------------------------------------------
-        | Conversion
-        |--------------------------------------------------------------------------
-        */
-
-        'converted_customer_id',
+        'estimated_duration',
 
         /*
         |--------------------------------------------------------------------------
@@ -116,13 +71,11 @@ class Lead extends Model
 
     protected $casts = [
 
-        'estimated_value'       => 'decimal:2',
-
-        'expected_closing_date' => 'date',
-
-        'next_follow_up_date'   => 'date',
-
-        'is_active'             => 'boolean',
+        'standard_price'      => 'decimal:2',
+        'gst_applicable'      => 'boolean',
+        'gst_percentage'      => 'decimal:2',
+        'estimated_duration'  => 'integer',
+        'is_active'           => 'boolean',
     ];
 
     /*
@@ -131,14 +84,9 @@ class Lead extends Model
     |--------------------------------------------------------------------------
     */
 
-    public function assignedEmployee()
+    public function quotationItems()
     {
-        return $this->belongsTo(Employee::class, 'assigned_employee_id');
-    }
-
-    public function convertedCustomer()
-    {
-        return $this->belongsTo(Customer::class, 'converted_customer_id');
+        return $this->hasMany(QuotationItem::class);
     }
 
     public function creator()
@@ -157,13 +105,18 @@ class Lead extends Model
     |--------------------------------------------------------------------------
     */
 
-    public static function nextLeadCode(): string
+    public static function nextServiceCode(): string
     {
-        return 'LEAD-' . str_pad(
-            static::withTrashed()->count() + 1,
-            4,
-            '0',
-            STR_PAD_LEFT
-        );
+        $lastService = self::withTrashed()
+            ->orderByDesc('id')
+            ->first();
+
+        $nextNumber = 1;
+
+        if ($lastService && ! empty($lastService->service_code)) {
+            $nextNumber = ((int) substr($lastService->service_code, -4)) + 1;
+        }
+
+        return 'SER-' . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
     }
 }
