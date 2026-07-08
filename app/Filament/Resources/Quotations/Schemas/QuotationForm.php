@@ -27,7 +27,23 @@ protected static function calculateLineTotal(Get $get, Set $set): void
 
     $lineTotal = ($quantity * $unitPrice) - $discount;
 
-    $set('line_total', max(0, $lineTotal));
+    $lineTotal = max(0, $lineTotal);
+
+$set('line_total', $lineTotal);
+
+self::calculateSubtotal($get, $set);
+}
+
+
+
+protected static function calculateSubtotal(Get $get, Set $set): void
+{
+    $items = $get('../../items') ?? [];
+
+    $subtotal = collect($items)
+        ->sum(fn ($item) => (float) ($item['line_total'] ?? 0));
+
+    $set('../../subtotal', $subtotal);
 }
 
     public static function configure(Schema $schema): Schema
@@ -173,10 +189,11 @@ protected static function calculateLineTotal(Get $get, Set $set): void
                             ->schema([
 
                                 TextInput::make('subtotal')
-                                    ->numeric()
-                                    ->prefix('₹')
-                                    ->default(0)
-                                    ->readOnly(),
+    ->live()
+    ->numeric()
+    ->prefix('₹')
+    ->default(0)
+    ->readOnly(),
 
                                 TextInput::make('discount')
                                     ->numeric()
