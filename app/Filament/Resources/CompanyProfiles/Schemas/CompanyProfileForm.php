@@ -5,6 +5,7 @@ namespace App\Filament\Resources\CompanyProfiles\Schemas;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\Toggle;
+use Filament\Forms\Components\FileUpload;
 use Filament\Schemas\Schema;
 
 class CompanyProfileForm
@@ -17,8 +18,30 @@ class CompanyProfileForm
                     ->required(),
                 TextInput::make('company_tagline'),
                 TextInput::make('owner_name'),
-                TextInput::make('logo'),
-                TextInput::make('favicon'),
+
+                FileUpload::make('logo')
+   		 ->label('Company Logo')
+   		 ->image()
+   		 ->imageEditor()
+   		 ->disk('public')
+   		 ->directory('company/logo')
+   		 ->visibility('public')
+   		 ->imagePreviewHeight('150')
+   		 ->openable()
+   		 ->downloadable(),
+
+                FileUpload::make('favicon')
+   		 ->label('Favicon')
+   		 ->image()
+   		 ->imageEditor()
+   		 ->disk('public')
+   		 ->directory('company/favicon')
+   		 ->visibility('public')
+   		 ->imagePreviewHeight('100')
+   		 ->openable()
+   		 ->downloadable(),
+
+
                 TextInput::make('primary_color')
                     ->required()
                     ->default('#2563eb'),

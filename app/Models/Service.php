@@ -22,8 +22,10 @@ class Service extends Model
         */
 
         'service_code',
-        'service_name',
-        'category',
+	'service_name',
+	'short_name',
+	'sku',
+	'category',
 
         /*
         |--------------------------------------------------------------------------
@@ -33,6 +35,10 @@ class Service extends Model
 
         'description',
         'standard_price',
+	'pricing_type',
+	'setup_fee',
+	'monthly_price',
+	'recurring',
 
         /*
         |--------------------------------------------------------------------------
@@ -50,6 +56,11 @@ class Service extends Model
         */
 
         'estimated_duration',
+	'display_order',
+	'is_featured',
+	'icon',
+	'thumbnail',
+	'notes',
 
         /*
         |--------------------------------------------------------------------------
@@ -71,11 +82,20 @@ class Service extends Model
 
     protected $casts = [
 
-        'standard_price'      => 'decimal:2',
-        'gst_applicable'      => 'boolean',
-        'gst_percentage'      => 'decimal:2',
-        'estimated_duration'  => 'integer',
-        'is_active'           => 'boolean',
+        'standard_price'     => 'decimal:2',
+	'setup_fee'          => 'decimal:2',
+	'monthly_price'      => 'decimal:2',
+
+	'gst_applicable'     => 'boolean',
+	'gst_percentage'     => 'decimal:2',
+
+	'recurring'          => 'boolean',
+	'is_featured'        => 'boolean',
+
+	'estimated_duration' => 'integer',
+	'display_order'      => 'integer',
+
+	'is_active'          => 'boolean',
     ];
 
     /*
@@ -88,6 +108,12 @@ class Service extends Model
     {
         return $this->hasMany(QuotationItem::class);
     }
+
+
+	public function packageItems()
+	{
+    return $this->hasMany(PackageItem::class);
+	}
 
     public function creator()
     {
