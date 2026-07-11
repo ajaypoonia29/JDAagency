@@ -54,6 +54,8 @@ class CompanyProfile extends Model
         'payment_qr',
 
         'google_drive_folder',
+	'gst_number',
+	'pan_number',
 
         'smtp_host',
         'smtp_port',

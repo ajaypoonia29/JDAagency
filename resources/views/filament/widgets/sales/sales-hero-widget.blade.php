@@ -1,6 +1,6 @@
 <x-filament-widgets::widget>
 
-    <x-filament::section>
+    <x-workspace.card>
 
         <div class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
 
@@ -35,6 +35,6 @@
 
         </div>
 
-    </x-filament::section>
+    </x-workspace.card>
 
 </x-filament-widgets::widget>

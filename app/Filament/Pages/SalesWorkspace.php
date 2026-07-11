@@ -4,6 +4,10 @@ namespace App\Filament\Pages;
 
 use App\Filament\Widgets\Sales\SalesHeroWidget;
 use App\Filament\Widgets\Sales\SalesStatsWidget;
+use App\Filament\Widgets\Sales\SalesQuickActionsWidget;
+use App\Filament\Widgets\Sales\PendingQuotationsWidget;
+use App\Filament\Widgets\Sales\RecentCustomersWidget;
+use App\Filament\Widgets\Sales\TodaysMeetingsWidget;
 use BackedEnum;
 use Filament\Pages\Page;
 use UnitEnum;
@@ -22,11 +26,22 @@ class SalesWorkspace extends Page
 
     protected string $view = 'filament.pages.sales-workspace';
 
-    public function getHeaderWidgets(): array
+   public function getHeaderWidgets(): array
 {
     return [
+
         SalesHeroWidget::class,
+
         SalesStatsWidget::class,
+
+        SalesQuickActionsWidget::class,
+
+        TodaysMeetingsWidget::class,
+
+        PendingQuotationsWidget::class,
+
+        RecentCustomersWidget::class,
+
     ];
 }
 }

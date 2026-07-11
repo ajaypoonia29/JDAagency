@@ -50,6 +50,8 @@ class Quotation extends Model
         */
 
         'status',
+'approved_at',
+'approved_by',
 
         /*
 |--------------------------------------------------------------------------
@@ -100,6 +102,7 @@ class Quotation extends Model
         'quotation_date' => 'date',
 
         'valid_until' => 'date',
+'approved_at' => 'datetime',
 
         /*
 |--------------------------------------------------------------------------
@@ -161,6 +164,11 @@ class Quotation extends Model
     {
         return $this->belongsTo(User::class, 'updated_by');
     }
+
+public function approver()
+{
+    return $this->belongsTo(User::class, 'approved_by');
+}
 
     /*
     |--------------------------------------------------------------------------
