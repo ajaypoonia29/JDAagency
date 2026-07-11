@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Payments\Pages;
 use App\Filament\Resources\Payments\PaymentResource;
 use App\Models\Payment;
 use App\Models\Quotation;
+use App\Services\Finance\PaymentService;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreatePayment extends CreateRecord
@@ -42,15 +43,16 @@ class CreatePayment extends CreateRecord
 
             'customer_id' => $quotation->customer_id,
 
-            'amount' => $quotation->grand_total,
+            'amount' => $quotation->balance_due > 0
+    ? $quotation->balance_due
+    : $quotation->grand_total,
 
         ]);
     }
 
     protected function afterCreate(): void
 {
-    $this->record->completePayment();
-
-    \App\Services\ReceiptService::generate($this->record);
+    PaymentService::process($this->record);
 }
+
 }

@@ -1,161 +1,391 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Quotation</title>
+@extends('pdf.layouts.document')
 
-    <style>
+@section('title')
+Quotation {{ $quotation->quotation_code }}
+@endsection
 
-        body{
-            font-family: DejaVu Sans, sans-serif;
-            font-size:12px;
-            color:#222;
-        }
+@section('document-title')
+Quotation
+@endsection
 
-        h1,h2,h3{
-            margin:0;
-        }
+@section('content')
 
-        table{
-            width:100%;
-            border-collapse:collapse;
-        }
+<div class="section">
 
-        th{
-            background:#f3f3f3;
-            border:1px solid #ccc;
-            padding:8px;
-            text-align:left;
-        }
+    <table class="table">
 
-        td{
-            border:1px solid #ccc;
-            padding:8px;
-        }
+        <tr>
 
-        .right{
-            text-align:right;
-        }
+            <td class="label">Quotation No.</td>
+            <td>{{ $quotation->quotation_code }}</td>
 
-        .center{
-            text-align:center;
-        }
+            <td class="label">Quotation Date</td>
+            <td>{{ optional($quotation->quotation_date)->format('d M Y') }}</td>
 
-        .mt-20{
-            margin-top:20px;
-        }
+        </tr>
 
-        .totals{
-            width:320px;
-            float:right;
-        }
+        <tr>
 
-    </style>
+            <td class="label">Valid Until</td>
+            <td>{{ optional($quotation->valid_until)->format('d M Y') }}</td>
 
-</head>
+            <td class="label">Status</td>
+            <td>{{ $quotation->status }}</td>
 
-<body>
+        </tr>
 
-<h1>Quotation</h1>
+    </table>
 
-<hr>
+</div>
 
-<p>
-<strong>Quotation #</strong>
-{{ $quotation->quotation_code }}
-</p>
+<div class="section">
 
-<p>
-<strong>Date:</strong>
-{{ optional($quotation->quotation_date)->format('d M Y') }}
-</p>
+    <table class="table">
 
-<p>
-<strong>Valid Until:</strong>
-{{ optional($quotation->valid_until)->format('d M Y') }}
-</p>
+        <tr>
 
-<br>
+            <td class="label">
 
-<table>
+                Customer Details
 
-<thead>
+            </td>
 
-<tr>
+            <td colspan="3">
 
-<th>Service</th>
-<th>Description</th>
-<th>Qty</th>
-<th>Price</th>
-<th>Discount</th>
-<th>Total</th>
+                <strong>
 
-</tr>
+                    {{ $quotation->customer->display_name }}
 
-</thead>
+                </strong>
 
-<tbody>
+                @php
 
-@foreach($quotation->items as $item)
+                    $businessName =
+                        $quotation->customer->legal_name
+                        ?: $quotation->customer->company_name;
 
-<tr>
+                @endphp
 
-<td>{{ optional($item->service)->service_name }}</td>
+                @if(
+                    $businessName &&
+                    $businessName !== $quotation->customer->display_name
+                )
 
-<td>{{ $item->description }}</td>
+                    <br>
 
-<td class="center">{{ $item->quantity }}</td>
+                    <strong>Business / Legal Name:</strong>
 
-<td class="right">
-₹ {{ number_format($item->unit_price,2) }}
-</td>
+                    {{ $businessName }}
 
-<td class="right">
-₹ {{ number_format($item->discount,2) }}
-</td>
+                @endif
 
-<td class="right">
-₹ {{ number_format($item->line_total,2) }}
-</td>
+                @if($quotation->customer->primary_phone)
 
-</tr>
+                    <br>
 
-@endforeach
+                    <strong>Phone:</strong>
 
-</tbody>
+                    {{ $quotation->customer->primary_phone }}
 
-</table>
+                @endif
 
-<br>
+                @if($quotation->customer->primary_email)
 
-<table class="totals">
+                    <br>
 
-<tr>
-<td>Subtotal</td>
-<td class="right">
-₹ {{ number_format($quotation->subtotal,2) }}
-</td>
-</tr>
+                    <strong>Email:</strong>
 
-<tr>
-<td>GST</td>
-<td class="right">
-₹ {{ number_format($quotation->tax,2) }}
-</td>
-</tr>
+                    {{ $quotation->customer->primary_email }}
 
-<tr>
+                @endif
 
-<th>Grand Total</th>
+            </td>
 
-<th class="right">
-₹ {{ number_format($quotation->grand_total,2) }}
-</th>
+        </tr>
 
-</tr>
+    </table>
 
-</table>
+</div>
 
-</body>
+<div class="section">
 
-</html>
+    <table class="table">
+
+        <thead
+    style="
+        background:#f3f4f6;
+        font-weight:bold;
+    "
+>
+
+        <tr>
+
+            <th style="width:28%;">Service</th>
+
+            <th>Description</th>
+
+            <th style="width:8%; text-align:center;">Qty</th>
+
+            <th style="width:15%; text-align:right;">Unit Price</th>
+
+            <th style="width:15%; text-align:right;">Discount</th>
+
+            <th style="width:18%; text-align:right;">Line Total</th>
+
+        </tr>
+
+        </thead>
+
+        <tbody>
+
+        @foreach($quotation->items as $item)
+
+        <tr>
+
+            <td>{{ optional($item->service)->service_name }}</td>
+
+            <td>{{ $item->description ?: '-' }}</td>
+
+            <td style="text-align:center;">
+                {{ $item->quantity }}
+            </td>
+
+            <td style="text-align:right;">
+                {{ $company->currency_symbol ?: '₹' }}
+                {{ number_format($item->unit_price,2) }}
+            </td>
+
+            <td style="text-align:right;">
+                {{ $company->currency_symbol ?: '₹' }}
+                {{ number_format($item->discount,2) }}
+            </td>
+
+            <td style="text-align:right;">
+                {{ $company->currency_symbol ?: '₹' }}
+                {{ number_format($item->line_total,2) }}
+            </td>
+
+        </tr>
+
+        @endforeach
+
+        </tbody>
+
+    </table>
+
+</div>
+
+<div
+    class="section"
+    style="margin-top:20px;"
+>
+
+    <table
+        class="table"
+        style="width:55%; margin-left:auto;"
+    >
+
+        <tr>
+
+            <td class="label">
+                Subtotal
+            </td>
+
+            <td style="text-align:right;">
+                {{ $company->currency_symbol ?: '₹' }}
+                {{ number_format($quotation->subtotal,2) }}
+            </td>
+
+        </tr>
+
+        <tr>
+
+            <td class="label">
+                Discount
+            </td>
+
+            <td style="text-align:right;">
+                {{ $company->currency_symbol ?: '₹' }}
+                {{ number_format($quotation->discount_value,2) }}
+            </td>
+
+        </tr>
+
+        <tr>
+
+            <td class="label">
+                GST
+            </td>
+
+            <td style="text-align:right;">
+                {{ $company->currency_symbol ?: '₹' }}
+                {{ number_format($quotation->tax,2) }}
+            </td>
+
+        </tr>
+
+        <tr>
+
+            <td
+    class="label"
+    style="
+        font-size:16px;
+        font-weight:bold;
+        background:#f3f4f6;
+    "
+>
+                Grand Total
+            </td>
+
+            <td
+    style="
+        text-align:right;
+        font-size:18px;
+        font-weight:bold;
+        color:#059669;
+        background:#f3f4f6;
+    "
+>
+
+                {{ $company->currency_symbol ?: '₹' }}
+                {{ number_format($quotation->grand_total,2) }}
+
+            </td>
+
+        </tr>
+
+    </table>
+
+</div>
+
+@if($quotation->customer_notes)
+
+<div class="section">
+
+    <table class="table">
+
+        <tr>
+
+            <td class="label">
+                Customer Notes
+            </td>
+
+            <td>
+                {{ $quotation->customer_notes }}
+            </td>
+
+        </tr>
+
+    </table>
+
+</div>
+
+@endif
+<div class="section">
+
+    <table class="table">
+
+        <tr>
+
+            <td class="label">
+
+                Terms & Conditions
+
+            </td>
+
+            <td>
+
+                <ol style="margin:0;padding-left:18px;">
+
+                    <li>
+                        This quotation is valid until
+                        <strong>
+                            {{ optional($quotation->valid_until)->format('d M Y') }}
+                        </strong>.
+                    </li>
+
+                    <li>
+                        Prices are subject to applicable taxes unless otherwise stated.
+                    </li>
+
+                    <li>
+                        Any additional work outside this quotation will be charged separately.
+                    </li>
+
+                    <li>
+                        Work will commence after confirmation and any applicable advance payment.
+                    </li>
+
+                    <li>
+                        This quotation is confidential and intended only for the named customer.
+                    </li>
+
+                </ol>
+
+            </td>
+
+        </tr>
+
+    </table>
+
+</div>
+
+<div class="section" style="margin-top:35px;">
+
+    <table style="width:100%; border:none;">
+
+        <tr>
+
+            <td style="width:45%; border:none; text-align:center;">
+
+                <div
+    style="
+        margin-top:65px;
+        border-top:2px solid #333;
+    "
+></div>
+
+                <strong>Customer Acceptance</strong>
+
+                <br>
+
+                Name & Signature
+
+            </td>
+
+            <td style="width:10%; border:none;"></td>
+
+            <td style="width:45%; border:none; text-align:center;">
+
+                <div style="margin-top:55px;border-top:1px solid #333;"></div>
+
+                <strong>Authorized Signatory</strong>
+
+                <br>
+
+                {{ $company->company_name }}
+
+            </td>
+
+        </tr>
+
+    </table>
+
+</div>
+
+<div
+    class="section"
+    style="
+        margin-top:20px;
+        text-align:center;
+        font-size:11px;
+        color:#555;
+    "
+>
+
+    Thank you for considering our services.
+
+    We look forward to working with you.
+
+</div>
+@endsection

@@ -125,7 +125,13 @@ class QuotationsTable
 
         ->color('warning')
 
-        ->visible(fn (Quotation $record): bool => $record->status === 'Approved')
+        ->visible(fn (Quotation $record): bool =>
+
+    in_array($record->status, ['Approved', 'Completed'])
+
+    && $record->payment_status !== 'Paid'
+
+)
 
         ->url(fn (Quotation $record): string =>
 

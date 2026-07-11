@@ -97,13 +97,32 @@ class PaymentsTable
             ->recordActions([
 
                 Action::make('downloadReceipt')
-                    ->label('Receipt')
-                    ->icon('heroicon-o-document-arrow-down')
-                    ->color('success')
-                    ->visible(fn ($record): bool => $record->receipt_generated)
-                    ->url(fn ($record): string => Storage::url($record->receipt_pdf))
-                    ->openUrlInNewTab(),
+    ->label('Receipt')
+    ->icon('heroicon-o-document-arrow-down')
+    ->color('success')
+    ->visible(fn ($record): bool => $record->receipt_generated)
+    ->url(fn ($record): string => Storage::url($record->receipt_pdf))
+    ->openUrlInNewTab(),
 
+Action::make('downloadStatement')
+    ->label('Statement')
+    ->icon('heroicon-o-document-text')
+    ->color('info')
+    ->visible(fn ($record): bool => $record->receipt_generated)
+    ->action(function ($record): void {
+
+        if (
+            empty($record->statement_pdf) ||
+            ! Storage::disk('public')->exists($record->statement_pdf)
+        ) {
+            \App\Services\Documents\DocumentService::paymentStatement($record);
+
+            $record->refresh();
+        }
+
+        redirect(Storage::url($record->statement_pdf));
+
+    }),
                 Action::make('sendWhatsapp')
                     ->label('WhatsApp')
                     ->icon('heroicon-o-chat-bubble-left-right')

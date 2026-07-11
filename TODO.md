@@ -2,41 +2,17 @@
 
 
 
-\## High Priority
+\## 🔥 Current Milestone — Finish Finance
 
 
 
-\- Real SMTP Email Integration
+\- \[ ] Partial Payments
 
-\- WhatsApp Business API
+\- \[ ] Outstanding Balance Workflow
 
-\- Communication Log
+\- \[ ] Invoice Workflow
 
-\- Document Engine
-
-\- Invoice Module
-
-
-
-\---
-
-
-
-\## Receipt Improvements
-
-
-
-\- QR Code Caching
-
-\- Thermal Receipt Template
-
-\- Digital Signature
-
-\- Company Stamp
-
-\- Print Layout
-
-\- UPI QR for Outstanding Balances
+\- \[ ] Payment Timeline
 
 
 
@@ -44,17 +20,19 @@
 
 
 
-\## Payments
+\## Communication
 
 
 
-\- Partial Payments
+\- \[ ] Real SMTP Email Integration
 
-\- Refund Workflow
+\- \[ ] WhatsApp Business API
 
-\- Payment Reminders
+\- \[ ] Communication Log
 
-\- Payment Timeline
+\- \[ ] Retry Queue
+
+\- \[ ] Delivery Status
 
 
 
@@ -66,13 +44,79 @@
 
 
 
-\- Invoice PDF
+\- \[ ] Invoice PDF
 
-\- Agreement PDF
+\- \[ ] Agreement PDF
 
-\- Purchase Order PDF
+\- \[ ] Purchase Order PDF
 
-\- Salary Slip PDF
+\- \[ ] Thermal Receipt
+
+\- \[ ] QR Code Caching
+
+\- \[ ] Digital Signature
+
+\- \[ ] Company Stamp
+
+\- \[ ] Print Layout
+
+\- \[ ] UPI QR for Outstanding Balances
+
+
+
+\---
+
+
+
+\## Operations
+
+
+
+\- \[ ] Projects
+
+\- \[ ] Tasks
+
+\- \[ ] Calendar
+
+\- \[ ] Automation
+
+
+
+\---
+
+
+
+\## Customer Portal
+
+
+
+\- \[ ] Customer Login
+
+\- \[ ] Download Documents
+
+\- \[ ] Payment History
+
+\- \[ ] Outstanding Balances
+
+\- \[ ] Support Tickets
+
+
+
+\---
+
+
+
+\## AI
+
+
+
+\- \[ ] AI Assistant
+
+\- \[ ] Proposal Generator
+
+\- \[ ] Email Drafting
+
+\- \[ ] Sales Insights
 
 
 
@@ -84,17 +128,17 @@
 
 
 
-\- API
+\- \[ ] Multi-company
 
-\- Mobile App
+\- \[ ] Multi-branch
 
-\- Multi-company
+\- \[ ] API
 
-\- Multi-branch
+\- \[ ] Mobile App
 
-\- Audit Logs
+\- \[ ] Queue Workers
 
-\- Queue Workers
+\- \[ ] Scheduled Jobs
 
-\- Scheduled Jobs
+\- \[ ] Audit Logs
 

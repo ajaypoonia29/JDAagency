@@ -68,7 +68,12 @@ Select::make('quotation_id')
     }
 
     $set('customer_id', $quotation->customer_id);
-    $set('amount', $quotation->grand_total);
+
+$outstanding = $quotation->balance_due > 0
+    ? $quotation->balance_due
+    : $quotation->grand_total;
+
+$set('amount', $outstanding);
 
 })
     ->required(),
@@ -82,12 +87,94 @@ Select::make('customer_id')
     ->searchable()
     ->preload(),
 
+Placeholder::make('quotation_total')
+    ->label('Quotation Total')
+    ->content(function (Get $get) {
+
+        $quotation = Quotation::find($get('quotation_id'));
+
+        return $quotation
+            ? '₹ ' . number_format($quotation->grand_total, 2)
+            : '-';
+
+    }),
+
+Placeholder::make('total_paid')
+    ->label('Already Paid')
+    ->content(function (Get $get) {
+
+        $quotation = Quotation::find($get('quotation_id'));
+
+        return $quotation
+            ? '₹ ' . number_format($quotation->total_paid, 2)
+            : '-';
+
+    }),
+
+Placeholder::make('balance_due')
+    ->label('Outstanding Balance')
+    ->content(function (Get $get) {
+
+        $quotation = Quotation::find($get('quotation_id'));
+
+        return $quotation
+            ? '₹ ' . number_format($quotation->balance_due, 2)
+            : '-';
+
+    }),
+
 TextInput::make('amount')
+    ->label('Payment Amount')
     ->prefix('₹')
     ->numeric()
-    ->disabled()
-    ->dehydrated(),
+    ->required()
+    ->minValue(1)
 
+    ->maxValue(function (Get $get) {
+
+        $quotation = Quotation::find($get('quotation_id'));
+
+        return $quotation
+            ? max($quotation->balance_due, 1)
+            : null;
+
+    })
+
+    ->rule(function (Get $get) {
+
+        return function (string $attribute, $value, \Closure $fail) use ($get) {
+
+            $quotation = Quotation::find($get('quotation_id'));
+
+            if (! $quotation) {
+                return;
+            }
+
+            if ($value > $quotation->balance_due) {
+
+                $fail(
+                    'Payment amount cannot exceed the outstanding balance of ₹ '
+                    . number_format($quotation->balance_due, 2)
+                );
+
+            }
+
+        };
+
+    })
+
+    ->helperText(function (Get $get) {
+
+        $quotation = Quotation::find($get('quotation_id'));
+
+        if (! $quotation) {
+            return null;
+        }
+
+        return 'Maximum allowed: ₹ ' .
+            number_format(max($quotation->balance_due, 0), 2);
+
+    }),
 
 
                                 Select::make('payment_method')

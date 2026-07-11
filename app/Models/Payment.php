@@ -57,6 +57,10 @@ class Payment extends Model
 	'receipt_pdf',
 
 	'receipt_generated_at',
+	
+	'statement_pdf',
+
+	'statement_generated_at',
 
         'created_by',
 
@@ -79,6 +83,9 @@ class Payment extends Model
 	'email_sent_at' => 'datetime',
 
 	'receipt_generated_at' => 'datetime',
+
+	'statement_generated_at' => 'datetime',
+
 
 	'is_active' => 'boolean',
 
@@ -114,19 +121,13 @@ class Payment extends Model
 
 public function completePayment(): void
 {
-    if ($this->quotation) {
+    // Update the financial ledger for the quotation.
+    $this->updateQuotationLedger();
 
-        $this->quotation->update([
-
-            'status' => 'Paid',
-
-        ]);
-
-    }
-
+    // Mark receipt information on the payment.
     $this->update([
 
-        'receipt_generated'    => true,
+        'receipt_generated' => true,
 
         'receipt_generated_at' => now(),
 
@@ -137,9 +138,58 @@ public function completePayment(): void
             ?: self::generateVerificationHash(),
 
     ]);
+
+    // If the quotation has now been fully paid,
+    // mark the workflow as Completed.
+    if (
+        $this->quotation &&
+        $this->quotation->fresh()->payment_status === 'Paid'
+    ) {
+        $this->quotation->update([
+            'status' => 'Completed',
+        ]);
+    }
 }
 
+public function updateQuotationLedger(): void
+{
+    if (! $this->quotation) {
+        return;
+    }
 
+    $quotation = $this->quotation->fresh();
+
+    $totalPaid = $quotation->payments()->sum('amount');
+
+    $balance = max(
+        $quotation->grand_total - $totalPaid,
+        0
+    );
+
+    if ($totalPaid <= 0) {
+
+        $status = 'Unpaid';
+
+    } elseif ($balance > 0) {
+
+        $status = 'Partially Paid';
+
+    } else {
+
+        $status = 'Paid';
+
+    }
+
+    $quotation->update([
+
+        'total_paid' => $totalPaid,
+
+        'balance_due' => $balance,
+
+        'payment_status' => $status,
+
+    ]);
+}
 
 
 

@@ -69,6 +69,9 @@ class Quotation extends Model
 
 'tax',
 'grand_total',
+'total_paid',
+'balance_due',
+'payment_status',
 
         /*
         |--------------------------------------------------------------------------
@@ -119,6 +122,8 @@ class Quotation extends Model
 'tax_percentage'   => 'decimal:2',
 
 'tax'              => 'decimal:2',
+'total_paid' => 'decimal:2',
+'balance_due' => 'decimal:2',
 'grand_total'      => 'decimal:2',
 
         'is_active' => 'boolean',
@@ -170,24 +175,55 @@ public function approver()
     return $this->belongsTo(User::class, 'approved_by');
 }
 
-    /*
-    |--------------------------------------------------------------------------
-    | Helpers
-    |--------------------------------------------------------------------------
-    */
 
-    public static function nextQuotationCode(): string
-    {
-        $lastQuotation = self::withTrashed()
-            ->orderByDesc('id')
-            ->first();
+public function payments()
+{
+    return $this->hasMany(\App\Models\Payment::class);
+}
 
-        $nextNumber = 1;
 
-        if ($lastQuotation && ! empty($lastQuotation->quotation_code)) {
-            $nextNumber = ((int) substr($lastQuotation->quotation_code, -4)) + 1;
+   /*
+|--------------------------------------------------------------------------
+| Helpers
+|--------------------------------------------------------------------------
+*/
+
+protected static function booted(): void
+{
+    static::creating(function (Quotation $quotation) {
+
+        $quotation->total_paid = 0;
+
+        $quotation->balance_due = $quotation->grand_total;
+
+        $quotation->payment_status = 'Unpaid';
+
+    });
+
+    static::updating(function (Quotation $quotation) {
+
+        if (
+            $quotation->isDirty('grand_total')
+            && $quotation->total_paid == 0
+        ) {
+            $quotation->balance_due = $quotation->grand_total;
         }
 
-        return 'QT-' . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+    });
+}
+
+public static function nextQuotationCode(): string
+{
+    $lastQuotation = self::withTrashed()
+        ->orderByDesc('id')
+        ->first();
+
+    $nextNumber = 1;
+
+    if ($lastQuotation && ! empty($lastQuotation->quotation_code)) {
+        $nextNumber = ((int) substr($lastQuotation->quotation_code, -4)) + 1;
     }
+
+    return 'QT-' . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+}
 }
