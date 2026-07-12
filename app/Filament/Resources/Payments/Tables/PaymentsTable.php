@@ -2,6 +2,9 @@
 
 namespace App\Filament\Resources\Payments\Tables;
 
+use App\Models\Payment;
+use App\Services\Communication\CommunicationService;
+use App\Services\Documents\DocumentService;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -14,7 +17,6 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Storage;
-use App\Services\Communication\CommunicationService;
 
 class PaymentsTable
 {
@@ -24,7 +26,9 @@ class PaymentsTable
             ->columns([
 
                 TextColumn::make('payment_no')
-                    ->searchable(),
+                    ->label('Payment')
+                    ->searchable()
+                    ->sortable(),
 
                 TextColumn::make('quotation.quotation_code')
                     ->label('Quotation')
@@ -37,41 +41,71 @@ class PaymentsTable
                     ->sortable(),
 
                 TextColumn::make('amount')
-                    ->numeric()
+                    ->label('Amount')
+                    ->money('INR')
                     ->sortable(),
 
                 TextColumn::make('payment_method')
+                    ->label('Method')
                     ->searchable(),
 
                 TextColumn::make('transaction_reference')
-                    ->searchable(),
+                    ->label('Transaction Reference')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('payment_date')
+                    ->label('Payment Date')
                     ->date()
                     ->sortable(),
 
                 IconColumn::make('receipt_generated')
+                    ->label('Receipt')
                     ->boolean(),
 
                 TextColumn::make('receipt_number')
+                    ->label('Receipt Number')
                     ->searchable(),
 
-                IconColumn::make('whatsapp_sent')
+                IconColumn::make('email_sent')
+                    ->label('Emailed')
                     ->boolean(),
 
-                IconColumn::make('email_sent')
+                TextColumn::make('email_sent_at')
+                    ->label('Last Emailed')
+                    ->since()
+                    ->sortable()
+                    ->placeholder('Not sent')
+                    ->toggleable(),
+
+                TextColumn::make('customer.primary_email')
+                    ->label('Email Recipient')
+                    ->placeholder('No email')
+                    ->copyable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('email_message_id')
+                    ->label('Email Reference')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                IconColumn::make('whatsapp_sent')
+                    ->label('WhatsApp')
                     ->boolean(),
 
                 IconColumn::make('is_active')
+                    ->label('Active')
                     ->boolean(),
 
                 TextColumn::make('created_by')
                     ->numeric()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('updated_by')
                     ->numeric()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('created_at')
                     ->dateTime()
@@ -97,65 +131,145 @@ class PaymentsTable
             ->recordActions([
 
                 Action::make('downloadReceipt')
-    ->label('Receipt')
-    ->icon('heroicon-o-document-arrow-down')
-    ->color('success')
-    ->visible(fn ($record): bool => $record->receipt_generated)
-    ->url(fn ($record): string => Storage::url($record->receipt_pdf))
-    ->openUrlInNewTab(),
+                    ->label('Receipt')
+                    ->icon('heroicon-o-document-arrow-down')
+                    ->color('success')
+                    ->visible(
+                        fn (Payment $record): bool =>
+                            $record->receipt_generated
+                            && filled($record->receipt_pdf)
+                    )
+                    ->url(
+                        fn (Payment $record): string =>
+                            Storage::url($record->receipt_pdf)
+                    )
+                    ->openUrlInNewTab(),
 
-Action::make('downloadStatement')
-    ->label('Statement')
-    ->icon('heroicon-o-document-text')
-    ->color('info')
-    ->visible(fn ($record): bool => $record->receipt_generated)
-    ->action(function ($record): void {
+                Action::make('downloadStatement')
+                    ->label('Statement')
+                    ->icon('heroicon-o-document-text')
+                    ->color('info')
+                    ->visible(
+                        fn (Payment $record): bool =>
+                            $record->receipt_generated
+                    )
+                    ->action(function (Payment $record): void {
 
-        if (
-            empty($record->statement_pdf) ||
-            ! Storage::disk('public')->exists($record->statement_pdf)
-        ) {
-            \App\Services\Documents\DocumentService::paymentStatement($record);
+                        if (
+                            blank($record->statement_pdf)
+                            || ! Storage::disk('public')
+                                ->exists($record->statement_pdf)
+                        ) {
+                            DocumentService::paymentStatement($record);
 
-            $record->refresh();
-        }
+                            $record->refresh();
+                        }
 
-        redirect(Storage::url($record->statement_pdf));
+                        redirect(
+                            Storage::url($record->statement_pdf)
+                        );
 
-    }),
+                    }),
+
                 Action::make('sendWhatsapp')
-                    ->label('WhatsApp')
+                    ->label(
+                        fn (Payment $record): string =>
+                            $record->whatsapp_sent
+                                ? 'Resend WhatsApp'
+                                : 'Send WhatsApp'
+                    )
                     ->icon('heroicon-o-chat-bubble-left-right')
                     ->color('success')
                     ->requiresConfirmation()
-                    ->visible(fn ($record): bool => $record->receipt_generated)
-                    ->action(function ($record): void {
+                    ->visible(
+                        fn (Payment $record): bool =>
+                            $record->receipt_generated
+                    )
+                    ->action(function (Payment $record): void {
 
-    CommunicationService::sendReceiptViaWhatsApp($record);
+                        $sent = CommunicationService::sendReceiptViaWhatsApp(
+                            $record
+                        );
 
-    Notification::make()
-        ->title('Receipt marked as sent via WhatsApp.')
-        ->success()
-        ->send();
+                        if ($sent) {
+                            Notification::make()
+                                ->title('Receipt sent via WhatsApp.')
+                                ->success()
+                                ->send();
 
-}),
+                            return;
+                        }
+
+                        Notification::make()
+                            ->title('Unable to send receipt via WhatsApp.')
+                            ->danger()
+                            ->send();
+
+                    }),
 
                 Action::make('sendEmail')
-                    ->label('Email')
+                    ->label(
+                        fn (Payment $record): string =>
+                            $record->email_sent
+                                ? 'Resend Email'
+                                : 'Send Email'
+                    )
                     ->icon('heroicon-o-envelope')
                     ->color('info')
                     ->requiresConfirmation()
-                    ->visible(fn ($record): bool => $record->receipt_generated)
-                    ->action(function ($record): void {
+                    ->visible(
+                        fn (Payment $record): bool =>
+                            $record->receipt_generated
+                    )
+                    ->modalHeading(
+                        fn (Payment $record): string =>
+                            $record->email_sent
+                                ? 'Resend Payment Receipt'
+                                : 'Send Payment Receipt'
+                    )
+                    ->modalDescription(
+                        fn (Payment $record): string =>
+                            'Send the receipt to: '
+                            . (
+                                $record->customer?->primary_email
+                                ?? 'No customer email available'
+                            )
+                    )
+                    ->action(function (Payment $record): void {
 
-    CommunicationService::sendReceiptViaEmail($record);
+                        $sent = CommunicationService::sendReceiptViaEmail(
+                            $record
+                        );
 
-    Notification::make()
-        ->title('Receipt marked as sent via Email.')
-        ->success()
-        ->send();
+                        if ($sent) {
+                            $record->refresh();
 
-}),
+                            Notification::make()
+                                ->title('Receipt emailed successfully.')
+                                ->body(
+                                    'Sent to: '
+                                    . (
+                                        $record->customer?->primary_email
+                                        ?? 'Customer email'
+                                    )
+                                )
+                                ->success()
+                                ->send();
+
+                            return;
+                        }
+
+                        Notification::make()
+                            ->title('Unable to send receipt email.')
+                            ->body(
+                                blank($record->customer?->primary_email)
+                                    ? 'The customer does not have a primary email address.'
+                                    : 'Check the application log for the mail delivery error.'
+                            )
+                            ->danger()
+                            ->send();
+
+                    }),
 
                 EditAction::make(),
 

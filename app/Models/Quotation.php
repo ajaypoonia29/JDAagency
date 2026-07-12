@@ -50,28 +50,39 @@ class Quotation extends Model
         */
 
         'status',
-'approved_at',
-'approved_by',
+        'approved_at',
+        'approved_by',
 
         /*
-|--------------------------------------------------------------------------
-| Financials
-|--------------------------------------------------------------------------
-*/
+        |--------------------------------------------------------------------------
+        | Delivery Tracking
+        |--------------------------------------------------------------------------
+        */
 
-'subtotal',
+        'quotation_sent_at',
+        'quotation_sent_by',
+        'quotation_send_count',
+        'last_sent_to',
 
-'discount_type',
-'discount_value',
+        /*
+        |--------------------------------------------------------------------------
+        | Financials
+        |--------------------------------------------------------------------------
+        */
 
-'tax_applicable',
-'tax_percentage',
+        'subtotal',
 
-'tax',
-'grand_total',
-'total_paid',
-'balance_due',
-'payment_status',
+        'discount_type',
+        'discount_value',
+
+        'tax_applicable',
+        'tax_percentage',
+
+        'tax',
+        'grand_total',
+        'total_paid',
+        'balance_due',
+        'payment_status',
 
         /*
         |--------------------------------------------------------------------------
@@ -103,28 +114,36 @@ class Quotation extends Model
     protected $casts = [
 
         'quotation_date' => 'date',
-
         'valid_until' => 'date',
-'approved_at' => 'datetime',
+
+        'approved_at' => 'datetime',
 
         /*
-|--------------------------------------------------------------------------
-| Financials
-|--------------------------------------------------------------------------
-*/
+        |--------------------------------------------------------------------------
+        | Delivery Tracking
+        |--------------------------------------------------------------------------
+        */
 
-'subtotal'         => 'decimal:2',
+        'quotation_sent_at' => 'datetime',
 
-'discount_type'    => 'string',
-'discount_value'   => 'decimal:2',
+        /*
+        |--------------------------------------------------------------------------
+        | Financials
+        |--------------------------------------------------------------------------
+        */
 
-'tax_applicable'   => 'boolean',
-'tax_percentage'   => 'decimal:2',
+        'subtotal' => 'decimal:2',
 
-'tax'              => 'decimal:2',
-'total_paid' => 'decimal:2',
-'balance_due' => 'decimal:2',
-'grand_total'      => 'decimal:2',
+        'discount_type' => 'string',
+        'discount_value' => 'decimal:2',
+
+        'tax_applicable' => 'boolean',
+        'tax_percentage' => 'decimal:2',
+
+        'tax' => 'decimal:2',
+        'grand_total' => 'decimal:2',
+        'total_paid' => 'decimal:2',
+        'balance_due' => 'decimal:2',
 
         'is_active' => 'boolean',
     ];
@@ -170,60 +189,67 @@ class Quotation extends Model
         return $this->belongsTo(User::class, 'updated_by');
     }
 
-public function approver()
-{
-    return $this->belongsTo(User::class, 'approved_by');
-}
-
-
-public function payments()
-{
-    return $this->hasMany(\App\Models\Payment::class);
-}
-
-
-   /*
-|--------------------------------------------------------------------------
-| Helpers
-|--------------------------------------------------------------------------
-*/
-
-protected static function booted(): void
-{
-    static::creating(function (Quotation $quotation) {
-
-        $quotation->total_paid = 0;
-
-        $quotation->balance_due = $quotation->grand_total;
-
-        $quotation->payment_status = 'Unpaid';
-
-    });
-
-    static::updating(function (Quotation $quotation) {
-
-        if (
-            $quotation->isDirty('grand_total')
-            && $quotation->total_paid == 0
-        ) {
-            $quotation->balance_due = $quotation->grand_total;
-        }
-
-    });
-}
-
-public static function nextQuotationCode(): string
-{
-    $lastQuotation = self::withTrashed()
-        ->orderByDesc('id')
-        ->first();
-
-    $nextNumber = 1;
-
-    if ($lastQuotation && ! empty($lastQuotation->quotation_code)) {
-        $nextNumber = ((int) substr($lastQuotation->quotation_code, -4)) + 1;
+    public function approver()
+    {
+        return $this->belongsTo(User::class, 'approved_by');
     }
 
-    return 'QT-' . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
-}
+    public function sentBy()
+    {
+        return $this->belongsTo(User::class, 'quotation_sent_by');
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(Payment::class);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Model Events
+    |--------------------------------------------------------------------------
+    */
+
+    protected static function booted(): void
+    {
+        static::creating(function (Quotation $quotation) {
+
+            $quotation->total_paid = 0;
+            $quotation->balance_due = $quotation->grand_total;
+            $quotation->payment_status = 'Unpaid';
+
+        });
+
+        static::updating(function (Quotation $quotation) {
+
+            if (
+                $quotation->isDirty('grand_total')
+                && $quotation->total_paid == 0
+            ) {
+                $quotation->balance_due = $quotation->grand_total;
+            }
+
+        });
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Helpers
+    |--------------------------------------------------------------------------
+    */
+
+    public static function nextQuotationCode(): string
+    {
+        $lastQuotation = self::withTrashed()
+            ->orderByDesc('id')
+            ->first();
+
+        $nextNumber = 1;
+
+        if ($lastQuotation && ! empty($lastQuotation->quotation_code)) {
+            $nextNumber = ((int) substr($lastQuotation->quotation_code, -4)) + 1;
+        }
+
+        return 'QT-' . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+    }
 }

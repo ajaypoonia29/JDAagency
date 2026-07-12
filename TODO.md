@@ -2,17 +2,31 @@
 
 
 
-\## 🔥 Current Milestone — Finish Finance
+\## Current Milestone — Invoice Engine
 
 
 
-\- \[ ] Partial Payments
+\- \[ ] Invoice model and database structure
 
-\- \[ ] Outstanding Balance Workflow
+\- \[ ] Invoice numbering
 
-\- \[ ] Invoice Workflow
+\- \[ ] Quotation-to-invoice conversion
 
-\- \[ ] Payment Timeline
+\- \[ ] Invoice PDF
+
+\- \[ ] Invoice email delivery
+
+\- \[ ] Invoice delivery tracking
+
+\- \[ ] Due dates and payment terms
+
+\- \[ ] Invoice status workflow
+
+\- \[ ] Outstanding invoice balance
+
+\- \[ ] GST invoice support
+
+\- \[ ] Credit notes
 
 
 
@@ -24,15 +38,59 @@
 
 
 
-\- \[ ] Real SMTP Email Integration
+\- \[x] Dynamic SMTP configuration
+
+\- \[x] Company-managed SMTP settings
+
+\- \[x] Hostinger SMTP integration
+
+\- \[x] Branded HTML email templates
+
+\- \[x] Test email workflow
+
+\- \[x] Quotation email delivery
+
+\- \[x] Receipt email delivery
+
+\- \[x] Send / Resend workflow
+
+\- \[x] Quotation delivery tracking
+
+\- \[ ] Payment statement email delivery
+
+\- \[ ] Communication log
+
+\- \[ ] Retry queue
 
 \- \[ ] WhatsApp Business API
 
-\- \[ ] Communication Log
+\- \[ ] Delivery status webhooks
 
-\- \[ ] Retry Queue
 
-\- \[ ] Delivery Status
+
+\---
+
+
+
+\## Finance
+
+
+
+\- \[x] Partial payments
+
+\- \[x] Outstanding balance workflow
+
+\- \[x] Payment ledger
+
+\- \[x] Payment statements
+
+\- \[x] Receipt verification
+
+\- \[ ] Refund workflow
+
+\- \[ ] Payment reminders
+
+\- \[ ] Payment timeline
 
 
 
@@ -44,23 +102,29 @@
 
 
 
+\- \[x] Quotation PDF
+
+\- \[x] Receipt PDF
+
+\- \[x] Payment statement PDF
+
 \- \[ ] Invoice PDF
 
 \- \[ ] Agreement PDF
 
-\- \[ ] Purchase Order PDF
+\- \[ ] Purchase order PDF
 
-\- \[ ] Thermal Receipt
+\- \[ ] Thermal receipt
 
-\- \[ ] QR Code Caching
+\- \[ ] QR code caching
 
-\- \[ ] Digital Signature
+\- \[ ] Digital signature
 
-\- \[ ] Company Stamp
+\- \[ ] Company stamp
 
-\- \[ ] Print Layout
+\- \[ ] Print layout
 
-\- \[ ] UPI QR for Outstanding Balances
+\- \[ ] UPI QR for outstanding balances
 
 
 
@@ -80,6 +144,8 @@
 
 \- \[ ] Automation
 
+\- \[ ] Internal workflows
+
 
 
 \---
@@ -90,15 +156,15 @@
 
 
 
-\- \[ ] Customer Login
+\- \[ ] Customer login
 
-\- \[ ] Download Documents
+\- \[ ] Download documents
 
-\- \[ ] Payment History
+\- \[ ] Payment history
 
-\- \[ ] Outstanding Balances
+\- \[ ] Outstanding balances
 
-\- \[ ] Support Tickets
+\- \[ ] Support tickets
 
 
 
@@ -110,13 +176,15 @@
 
 
 
-\- \[ ] AI Assistant
+\- \[ ] AI assistant
 
-\- \[ ] Proposal Generator
+\- \[ ] Proposal generator
 
-\- \[ ] Email Drafting
+\- \[ ] Email drafting
 
-\- \[ ] Sales Insights
+\- \[ ] Sales insights
+
+\- \[ ] Workflow suggestions
 
 
 
@@ -124,7 +192,7 @@
 
 
 
-\## Future
+\## Enterprise
 
 
 
@@ -132,13 +200,13 @@
 
 \- \[ ] Multi-branch
 
-\- \[ ] API
+\- \[ ] REST API
 
-\- \[ ] Mobile App
+\- \[ ] Mobile app
 
-\- \[ ] Queue Workers
+\- \[ ] Queue workers
 
-\- \[ ] Scheduled Jobs
+\- \[ ] Scheduled jobs
 
-\- \[ ] Audit Logs
+\- \[ ] Audit logs
 

@@ -14,6 +14,7 @@ use Filament\Tables\Table;
 use App\Models\Quotation;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
+use App\Services\Communication\EmailService;
 
 class QuotationsTable
 {
@@ -43,7 +44,24 @@ class QuotationsTable
                     ->sortable(),
                 TextColumn::make('status')
                     ->searchable(),
-                TextColumn::make('subtotal')
+
+	TextColumn::make('quotation_sent_at')
+    	->label('Last Emailed')
+    	->since()
+    	->sortable()
+    	->toggleable(),
+
+	TextColumn::make('quotation_send_count')
+    	->label('Emails')
+    	->badge()
+    	->sortable(),
+
+	TextColumn::make('last_sent_to')
+    	->label('Last Recipient')
+    	->searchable()
+    	->toggleable(isToggledHiddenByDefault: true),
+                
+		TextColumn::make('subtotal')
                     ->numeric()
                     ->sortable(),
                 TextColumn::make('discount')
@@ -142,6 +160,50 @@ class QuotationsTable
             ])
 
         ),
+
+Action::make('sendQuotation')
+
+    ->label(fn (Quotation $record): string =>
+        $record->quotation_send_count > 0
+            ? 'Resend Email'
+            : 'Send Email'
+    )
+
+    ->icon('heroicon-o-envelope')
+
+    ->color('info')
+
+    ->requiresConfirmation()
+
+    ->modalDescription(fn (Quotation $record): string =>
+        'Send quotation to: ' . ($record->customer?->primary_email ?? 'No email available')
+    )
+
+    ->action(function (Quotation $record): void {
+
+        if (EmailService::sendQuotation($record)) {
+
+            $record->refresh();
+
+            Notification::make()
+                ->title('Quotation emailed successfully.')
+                ->body(
+                    'Total sends: ' . $record->quotation_send_count
+                )
+                ->success()
+                ->send();
+
+        } else {
+
+            Notification::make()
+                ->title('Unable to send quotation email.')
+                ->danger()
+                ->send();
+
+        }
+
+    }),
+
 
     EditAction::make(),
 
