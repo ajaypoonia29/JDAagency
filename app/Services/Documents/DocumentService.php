@@ -8,6 +8,14 @@ use App\Models\Quotation;
 class DocumentService
 {
     /**
+     * Instance-based receipt generation for dependency injection.
+     */
+    public function generateReceipt(Payment $payment): string
+    {
+        return static::receipt($payment);
+    }
+
+    /**
      * Generate a payment receipt PDF.
      */
     public static function receipt(Payment $payment): string

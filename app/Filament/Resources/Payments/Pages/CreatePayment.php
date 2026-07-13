@@ -3,22 +3,18 @@
 namespace App\Filament\Resources\Payments\Pages;
 
 use App\Filament\Resources\Payments\PaymentResource;
-use App\Models\Payment;
 use App\Models\Quotation;
 use App\Services\Finance\PaymentService;
 use Filament\Resources\Pages\CreateRecord;
+use Illuminate\Database\Eloquent\Model;
 
 class CreatePayment extends CreateRecord
 {
     protected static string $resource = PaymentResource::class;
 
-    protected function mutateFormDataBeforeCreate(array $data): array
+    protected function handleRecordCreation(array $data): Model
     {
-        $data['payment_no'] = Payment::nextPaymentNumber();
-
-        $data['receipt_number'] = Payment::nextReceiptNumber();
-
-        return $data;
+        return app(PaymentService::class)->create($data);
     }
 
     public function mount(): void
@@ -38,21 +34,11 @@ class CreatePayment extends CreateRecord
         }
 
         $this->form->fill([
-
             'quotation_id' => $quotation->id,
-
             'customer_id' => $quotation->customer_id,
-
             'amount' => $quotation->balance_due > 0
-    ? $quotation->balance_due
-    : $quotation->grand_total,
-
+                ? $quotation->balance_due
+                : $quotation->grand_total,
         ]);
     }
-
-    protected function afterCreate(): void
-{
-    PaymentService::process($this->record);
-}
-
 }
