@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Finance\QuotationLedgerService;
 use App\Traits\HasCreatedUpdatedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -117,6 +118,35 @@ class Payment extends Model
         return $this->belongsTo(User::class, 'updated_by');
     }
 
+    protected static function booted(): void
+    {
+        static::saved(function (Payment $payment): void {
+            $quotationIds = [$payment->quotation_id];
+
+            if ($payment->wasChanged('quotation_id')) {
+                $quotationIds[] = $payment->getOriginal('quotation_id');
+            }
+
+            app(QuotationLedgerService::class)
+                ->recalculateMany($quotationIds);
+        });
+
+        static::deleted(function (Payment $payment): void {
+            app(QuotationLedgerService::class)
+                ->recalculate($payment->quotation_id);
+        });
+
+        static::restored(function (Payment $payment): void {
+            app(QuotationLedgerService::class)
+                ->recalculate($payment->quotation_id);
+        });
+
+        static::forceDeleted(function (Payment $payment): void {
+            app(QuotationLedgerService::class)
+                ->recalculate($payment->quotation_id);
+        });
+    }
+
 
 
 public function completePayment(): void
@@ -153,42 +183,8 @@ public function completePayment(): void
 
 public function updateQuotationLedger(): void
 {
-    if (! $this->quotation) {
-        return;
-    }
-
-    $quotation = $this->quotation->fresh();
-
-    $totalPaid = $quotation->payments()->sum('amount');
-
-    $balance = max(
-        $quotation->grand_total - $totalPaid,
-        0
-    );
-
-    if ($totalPaid <= 0) {
-
-        $status = 'Unpaid';
-
-    } elseif ($balance > 0) {
-
-        $status = 'Partially Paid';
-
-    } else {
-
-        $status = 'Paid';
-
-    }
-
-    $quotation->update([
-
-        'total_paid' => $totalPaid,
-
-        'balance_due' => $balance,
-
-        'payment_status' => $status,
-
-    ]);
+    app(QuotationLedgerService::class)
+        ->recalculate($this->quotation_id);
 }
 
 
@@ -223,7 +219,9 @@ public static function generateVerificationHash(): string
 
 public function verificationUrl(): string
 {
-    return url('/verify/' . $this->verification_hash);
+    return route('receipt.verify', [
+        'hash' => $this->verification_hash,
+    ]);
 }
     
 }

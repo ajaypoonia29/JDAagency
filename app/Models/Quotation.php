@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\Finance\QuotationLedgerService;
 use App\Traits\HasCreatedUpdatedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -220,13 +221,11 @@ class Quotation extends Model
 
         });
 
-        static::updating(function (Quotation $quotation) {
+        static::updated(function (Quotation $quotation): void {
 
-            if (
-                $quotation->isDirty('grand_total')
-                && $quotation->total_paid == 0
-            ) {
-                $quotation->balance_due = $quotation->grand_total;
+            if ($quotation->wasChanged('grand_total')) {
+                app(QuotationLedgerService::class)
+                    ->recalculate($quotation);
             }
 
         });
