@@ -120,6 +120,21 @@ class Payment extends Model
 
     protected static function booted(): void
     {
+        static::updating(function (Payment $payment): void {
+            foreach ([
+                'payment_no',
+                'receipt_number',
+                'receipt_uuid',
+                'verification_hash',
+            ] as $attribute) {
+                $original = $payment->getOriginal($attribute);
+
+                if (filled($original) && $payment->isDirty($attribute)) {
+                    $payment->setAttribute($attribute, $original);
+                }
+            }
+        });
+
         static::saved(function (Payment $payment): void {
             $quotationIds = [$payment->quotation_id];
 

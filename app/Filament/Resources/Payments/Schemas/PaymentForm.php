@@ -83,7 +83,7 @@ Select::make('customer_id')
     ->label('Customer')
     ->relationship('customer', 'display_name')
     ->disabled()
-    ->dehydrated()
+    ->dehydrated(false)
     ->searchable()
     ->preload(),
 
@@ -128,40 +128,7 @@ TextInput::make('amount')
     ->prefix('₹')
     ->numeric()
     ->required()
-    ->minValue(1)
-
-    ->maxValue(function (Get $get) {
-
-        $quotation = Quotation::find($get('quotation_id'));
-
-        return $quotation
-            ? max($quotation->balance_due, 1)
-            : null;
-
-    })
-
-    ->rule(function (Get $get) {
-
-        return function (string $attribute, $value, \Closure $fail) use ($get) {
-
-            $quotation = Quotation::find($get('quotation_id'));
-
-            if (! $quotation) {
-                return;
-            }
-
-            if ($value > $quotation->balance_due) {
-
-                $fail(
-                    'Payment amount cannot exceed the outstanding balance of ₹ '
-                    . number_format($quotation->balance_due, 2)
-                );
-
-            }
-
-        };
-
-    })
+    ->minValue(0.01)
 
     ->helperText(function (Get $get) {
 
@@ -171,8 +138,9 @@ TextInput::make('amount')
             return null;
         }
 
-        return 'Maximum allowed: ₹ ' .
-            number_format(max($quotation->balance_due, 0), 2);
+        return 'Current outstanding: ₹ ' .
+            number_format(max($quotation->balance_due, 0), 2)
+            . '. The final allowed amount is validated when saved.';
 
     }),
 

@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Payments\Tables;
 use App\Models\Payment;
 use App\Services\Communication\CommunicationService;
 use App\Services\Documents\DocumentService;
+use App\Services\Finance\PaymentService;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -279,11 +280,23 @@ class PaymentsTable
 
                 BulkActionGroup::make([
 
-                    DeleteBulkAction::make(),
+                    DeleteBulkAction::make()
+                        ->using(
+                            fn (Payment $record): bool =>
+                                app(PaymentService::class)->delete($record)
+                        ),
 
-                    ForceDeleteBulkAction::make(),
+                    ForceDeleteBulkAction::make()
+                        ->using(
+                            fn (Payment $record): bool =>
+                                app(PaymentService::class)->forceDelete($record)
+                        ),
 
-                    RestoreBulkAction::make(),
+                    RestoreBulkAction::make()
+                        ->using(
+                            fn (Payment $record): bool =>
+                                app(PaymentService::class)->restore($record)
+                        ),
 
                 ]),
 
