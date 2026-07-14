@@ -25,6 +25,7 @@ Route::get('/', function () {
 */
 
 Route::get('/r/{hash}', [ReceiptVerificationController::class, 'show'])
+    ->middleware('throttle:30,1')
     ->name('receipt.verify');
 
 /*

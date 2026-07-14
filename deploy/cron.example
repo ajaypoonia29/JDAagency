@@ -1,0 +1,2 @@
+# Run Laravel's scheduler once per minute.
+* * * * * cd /var/www/agencyos && php artisan schedule:run >> /dev/null 2>&1
