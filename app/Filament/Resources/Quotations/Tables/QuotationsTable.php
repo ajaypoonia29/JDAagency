@@ -2,19 +2,20 @@
 
 namespace App\Filament\Resources\Quotations\Tables;
 
+use App\Filament\Resources\Payments\PaymentResource;
+use App\Models\Quotation;
+use App\Services\CRM\QuotationWorkflowService;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreBulkAction;
+use Filament\Notifications\Notification;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
-use App\Models\Quotation;
-use Filament\Actions\Action;
-use Filament\Notifications\Notification;
-use App\Services\Communication\EmailService;
 
 class QuotationsTable
 {
@@ -23,199 +24,178 @@ class QuotationsTable
         return $table
             ->columns([
                 TextColumn::make('quotation_code')
-                    ->searchable(),
-                TextColumn::make('lead_id')
-                    ->numeric()
+                    ->label('Quotation')
+                    ->searchable()
                     ->sortable(),
-                TextColumn::make('customer_id')
-                    ->numeric()
+
+                TextColumn::make('lead.lead_code')
+                    ->label('Lead')
+                    ->placeholder('Standalone')
+                    ->searchable()
                     ->sortable(),
-                TextColumn::make('meeting_id')
-                    ->numeric()
+
+                TextColumn::make('customer.display_name')
+                    ->label('Customer')
+                    ->searchable()
                     ->sortable(),
-                TextColumn::make('assigned_employee_id')
-                    ->numeric()
+
+                TextColumn::make('meeting.meeting_code')
+                    ->label('Meeting')
+                    ->placeholder('Direct')
+                    ->searchable()
                     ->sortable(),
+
                 TextColumn::make('quotation_date')
                     ->date()
                     ->sortable(),
-                TextColumn::make('valid_until')
-                    ->date()
-                    ->sortable(),
+
                 TextColumn::make('status')
-                    ->searchable(),
-
-	TextColumn::make('quotation_sent_at')
-    	->label('Last Emailed')
-    	->since()
-    	->sortable()
-    	->toggleable(),
-
-	TextColumn::make('quotation_send_count')
-    	->label('Emails')
-    	->badge()
-    	->sortable(),
-
-	TextColumn::make('last_sent_to')
-    	->label('Last Recipient')
-    	->searchable()
-    	->toggleable(isToggledHiddenByDefault: true),
-                
-		TextColumn::make('subtotal')
-                    ->numeric()
+                    ->badge()
                     ->sortable(),
-                TextColumn::make('discount')
-                    ->numeric()
+
+                TextColumn::make('payment_status')
+                    ->label('Payment')
+                    ->badge()
                     ->sortable(),
-                TextColumn::make('tax')
-                    ->numeric()
-                    ->sortable(),
+
                 TextColumn::make('grand_total')
-                    ->numeric()
+                    ->money('INR')
                     ->sortable(),
+
+                TextColumn::make('balance_due')
+                    ->money('INR')
+                    ->sortable(),
+
+                TextColumn::make('quotation_sent_at')
+                    ->label('Last Emailed')
+                    ->since()
+                    ->sortable()
+                    ->toggleable(),
+
+                TextColumn::make('quotation_send_count')
+                    ->label('Emails')
+                    ->badge()
+                    ->sortable(),
+
+                TextColumn::make('last_sent_to')
+                    ->label('Last Recipient')
+                    ->searchable()
+                    ->toggleable(
+                        isToggledHiddenByDefault: true,
+                    ),
+
                 IconColumn::make('is_active')
                     ->boolean(),
-                TextColumn::make('created_by')
-                    ->numeric()
-                    ->sortable(),
-                TextColumn::make('updated_by')
-                    ->numeric()
-                    ->sortable(),
-                TextColumn::make('deleted_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('created_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('updated_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 TrashedFilter::make(),
             ])
+            ->recordActions([
+                Action::make('approve')
+                    ->label('Approve')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->authorize('approve')
+                    ->visible(
+                        fn (Quotation $record): bool =>
+                            $record->status === 'Draft'
+                    )
+                    ->action(function (
+                        Quotation $record,
+                    ): void {
+                        app(QuotationWorkflowService::class)
+                            ->approve($record);
 
+                        Notification::make()
+                            ->title('Quotation approved.')
+                            ->success()
+                            ->send();
+                    }),
 
-->recordActions([
+                Action::make('receivePayment')
+                    ->label('Receive Payment')
+                    ->icon('heroicon-o-banknotes')
+                    ->color('warning')
+                    ->authorize('receivePayment')
+                    ->visible(
+                        fn (Quotation $record): bool =>
+                            in_array(
+                                $record->status,
+                                [
+                                    'Approved',
+                                    'Sent',
+                                    'Accepted',
+                                    'Completed',
+                                ],
+                                true,
+                            )
+                            && $record->payment_status !== 'Paid'
+                    )
+                    ->url(
+                        fn (Quotation $record): string =>
+                            PaymentResource::getUrl('create', [
+                                'quotation' => $record->id,
+                            ])
+                    ),
 
-    Action::make('approve')
+                Action::make('sendQuotation')
+                    ->label(
+                        fn (Quotation $record): string =>
+                            $record->quotation_send_count > 0
+                                ? 'Resend Email'
+                                : 'Send Email'
+                    )
+                    ->icon('heroicon-o-envelope')
+                    ->color('info')
+                    ->requiresConfirmation()
+                    ->authorize('send')
+                    ->visible(
+                        fn (Quotation $record): bool =>
+                            in_array(
+                                $record->status,
+                                [
+                                    'Approved',
+                                    'Sent',
+                                    'Accepted',
+                                    'Completed',
+                                ],
+                                true,
+                            )
+                    )
+                    ->modalDescription(
+                        fn (Quotation $record): string =>
+                            'Send quotation to: '
+                            . (
+                                $record
+                                    ->customer
+                                    ?->primary_email
+                                ?? 'No email available'
+                            )
+                    )
+                    ->action(function (
+                        Quotation $record,
+                    ): void {
+                        $sent = app(
+                            QuotationWorkflowService::class
+                        )->send($record);
 
-        ->label('Approve')
+                        $notification = Notification::make()
+                            ->title(
+                                $sent
+                                    ? 'Quotation emailed successfully.'
+                                    : 'Unable to send quotation email.'
+                            );
 
-        ->icon('heroicon-o-check-circle')
+                        $sent
+                            ? $notification->success()
+                            : $notification->danger();
 
-        ->color('success')
+                        $notification->send();
+                    }),
 
-        ->requiresConfirmation()
-
-        ->authorize('approve')
-
-        ->visible(fn (Quotation $record): bool => $record->status === 'Draft')
-
-        ->action(function (Quotation $record): void {
-
-            $record->update([
-
-                'status' => 'Approved',
-
-                'approved_at' => now(),
-
-                'approved_by' => auth()->id(),
-
-            ]);
-
-            Notification::make()
-
-                ->title('Quotation Approved')
-
-                ->success()
-
-                ->send();
-
-        }),
-
-    Action::make('receivePayment')
-
-        ->label('Receive Payment')
-
-        ->icon('heroicon-o-banknotes')
-
-        ->color('warning')
-
-        ->authorize('receivePayment')
-
-        ->visible(fn (Quotation $record): bool =>
-
-    in_array($record->status, ['Approved', 'Completed'])
-
-    && $record->payment_status !== 'Paid'
-
-)
-
-        ->url(fn (Quotation $record): string =>
-
-            route('filament.admin.resources.payments.create', [
-
-                'quotation' => $record->id,
-
+                EditAction::make(),
             ])
-
-        ),
-
-Action::make('sendQuotation')
-
-    ->label(fn (Quotation $record): string =>
-        $record->quotation_send_count > 0
-            ? 'Resend Email'
-            : 'Send Email'
-    )
-
-    ->icon('heroicon-o-envelope')
-
-    ->color('info')
-
-    ->requiresConfirmation()
-
-    ->authorize('send')
-
-    ->modalDescription(fn (Quotation $record): string =>
-        'Send quotation to: ' . ($record->customer?->primary_email ?? 'No email available')
-    )
-
-    ->action(function (Quotation $record): void {
-
-        if (EmailService::sendQuotation($record)) {
-
-            $record->refresh();
-
-            Notification::make()
-                ->title('Quotation emailed successfully.')
-                ->body(
-                    'Total sends: ' . $record->quotation_send_count
-                )
-                ->success()
-                ->send();
-
-        } else {
-
-            Notification::make()
-                ->title('Unable to send quotation email.')
-                ->danger()
-                ->send();
-
-        }
-
-    }),
-
-
-    EditAction::make(),
-
-])
-
-
             ->toolbarActions([
                 BulkActionGroup::make([
                     DeleteBulkAction::make()
