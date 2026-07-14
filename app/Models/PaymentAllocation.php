@@ -7,6 +7,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Validation\ValidationException;
 
 class PaymentAllocation extends Model
 {
@@ -21,6 +22,29 @@ class PaymentAllocation extends Model
     protected $casts = [
         'amount' => 'decimal:2',
     ];
+
+    protected static function booted(): void
+    {
+        static::saving(function (PaymentAllocation $allocation): void {
+            if ((float) $allocation->amount <= 0) {
+                throw ValidationException::withMessages([
+                    'amount' =>
+                        'Payment allocation amount must be greater than zero.',
+                ]);
+            }
+        });
+
+        static::updating(function (PaymentAllocation $allocation): void {
+            foreach (['payment_id', 'invoice_id'] as $attribute) {
+                if ($allocation->isDirty($attribute)) {
+                    $allocation->setAttribute(
+                        $attribute,
+                        $allocation->getOriginal($attribute),
+                    );
+                }
+            }
+        });
+    }
 
     public function payment(): BelongsTo
     {

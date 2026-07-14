@@ -1,9 +1,11 @@
 <?php
 
+use App\Http\Controllers\CreditNoteDocumentController;
 use App\Http\Controllers\InvoiceDocumentController;
 use App\Http\Controllers\PaymentDocumentController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReceiptVerificationController;
+use App\Http\Controllers\RefundDocumentController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -47,6 +49,16 @@ Route::middleware('auth')->group(function () {
         '/finance/invoices/{invoice}/download',
         [InvoiceDocumentController::class, 'download']
     )->name('finance.invoices.download');
+
+    Route::get(
+        '/finance/credit-notes/{creditNote}/download',
+        [CreditNoteDocumentController::class, 'download']
+    )->name('finance.credit-notes.download');
+
+    Route::get(
+        '/finance/refunds/{refund}/download',
+        [RefundDocumentController::class, 'download']
+    )->name('finance.refunds.download');
 
     Route::get(
         '/finance/payments/{payment}/receipt',

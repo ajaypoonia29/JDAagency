@@ -115,6 +115,16 @@ class Payment extends Model
         return $this->hasMany(PaymentAllocation::class);
     }
 
+    public function refunds(): HasMany
+    {
+        return $this->hasMany(Refund::class);
+    }
+
+    public function processedRefunds(): HasMany
+    {
+        return $this->refunds()->where('status', 'Processed');
+    }
+
     public function invoices(): BelongsToMany
     {
         return $this->belongsToMany(

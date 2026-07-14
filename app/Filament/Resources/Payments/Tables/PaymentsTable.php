@@ -44,6 +44,16 @@ class PaymentsTable
                     ->money('INR')
                     ->sortable(),
 
+                TextColumn::make('refunded_amount')
+                    ->label('Refunded')
+                    ->state(
+                        fn (Payment $record): float =>
+                            round((float) $record->refunds()
+                                ->where('status', 'Processed')
+                                ->sum('amount'), 2),
+                    )
+                    ->money('INR'),
+
                 TextColumn::make('payment_method')
                     ->label('Method')
                     ->searchable(),
@@ -268,7 +278,13 @@ class PaymentsTable
 
                     }),
 
-                EditAction::make(),
+                EditAction::make()
+                    ->visible(
+                        fn (Payment $record): bool =>
+                            ! $record->refunds()
+                                ->where('status', 'Processed')
+                                ->exists(),
+                    ),
 
             ])
 

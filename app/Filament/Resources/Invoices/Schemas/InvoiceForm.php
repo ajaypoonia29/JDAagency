@@ -96,32 +96,67 @@ class InvoiceForm
 
             Section::make('Financial Snapshot')
                 ->schema([
-                    Grid::make(5)->schema([
-                        Placeholder::make('subtotal_display')
-                            ->label('Subtotal')
+                    Grid::make(4)->schema([
+                        Placeholder::make('original_total_display')
+                            ->label('Original Total')
                             ->content(fn (?Invoice $record): string =>
-                                self::money($record?->subtotal)),
-                        Placeholder::make('discount_display')
-                            ->label('Discount')
+                                self::money($record?->grand_total)),
+                        Placeholder::make('credited_display')
+                            ->label('Credit Notes')
                             ->content(fn (?Invoice $record): string =>
-                                self::money($record?->discount_value)),
-                        Placeholder::make('tax_display')
-                            ->label('Tax')
+                                self::money($record?->credited_total)),
+                        Placeholder::make('net_total_display')
+                            ->label('Net Invoice Total')
                             ->content(fn (?Invoice $record): string =>
-                                self::money($record?->tax)),
+                                self::money($record?->net_total)),
+                        Placeholder::make('refunded_display')
+                            ->label('Refunded')
+                            ->content(fn (?Invoice $record): string =>
+                                self::money($record?->refunded_total)),
                         Placeholder::make('paid_display')
-                            ->label('Paid')
+                            ->label('Net Paid')
                             ->content(fn (?Invoice $record): string =>
                                 self::money($record?->total_paid)),
                         Placeholder::make('balance_display')
                             ->label('Balance Due')
                             ->content(fn (?Invoice $record): string =>
                                 self::money($record?->balance_due)),
+                        Placeholder::make('subtotal_display')
+                            ->label('Subtotal')
+                            ->content(fn (?Invoice $record): string =>
+                                self::money($record?->subtotal)),
+                        Placeholder::make('tax_display')
+                            ->label('Tax')
+                            ->content(fn (?Invoice $record): string =>
+                                self::money($record?->tax)),
                     ]),
-                    Placeholder::make('grand_total_display')
-                        ->label('Grand Total')
+                ]),
+
+            Section::make('Delivery')
+                ->schema([
+                    Grid::make(4)->schema([
+                        Placeholder::make('email_sent_display')
+                            ->label('Email Status')
+                            ->content(fn (?Invoice $record): string =>
+                                $record?->email_sent ? 'Sent' : 'Not sent'),
+                        Placeholder::make('last_sent_to_display')
+                            ->label('Last Recipient')
+                            ->content(fn (?Invoice $record): string =>
+                                $record?->last_sent_to ?? '-'),
+                        Placeholder::make('email_count_display')
+                            ->label('Send Count')
+                            ->content(fn (?Invoice $record): string =>
+                                (string) ($record?->email_send_count ?? 0)),
+                        Placeholder::make('email_sent_at_display')
+                            ->label('Last Sent')
+                            ->content(fn (?Invoice $record): string =>
+                                $record?->email_sent_at?->format('d M Y H:i')
+                                ?? '-'),
+                    ]),
+                    Placeholder::make('delivery_error_display')
+                        ->label('Last Delivery Error')
                         ->content(fn (?Invoice $record): string =>
-                            self::money($record?->grand_total)),
+                            $record?->last_delivery_error ?? '-'),
                 ]),
         ]);
     }

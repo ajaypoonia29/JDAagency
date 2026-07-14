@@ -117,6 +117,9 @@ class InvoiceService
                 'discount_value' => $lockedQuotation->discount_value,
                 'tax' => $lockedQuotation->tax,
                 'grand_total' => $lockedQuotation->grand_total,
+                'credited_total' => 0,
+                'refunded_total' => 0,
+                'net_total' => $lockedQuotation->grand_total,
                 'total_paid' => 0,
                 'balance_due' => $lockedQuotation->grand_total,
                 'customer_notes' => $validated['customer_notes']
@@ -314,12 +317,35 @@ class InvoiceService
                 ]);
             }
 
+            if ($lockedInvoice->creditNotes()
+                ->where('status', 'Issued')
+                ->exists()) {
+                throw ValidationException::withMessages([
+                    'status' =>
+                        'Void issued credit notes before voiding the invoice.',
+                ]);
+            }
+
+            if ($lockedInvoice->refunds()
+                ->where('status', 'Processed')
+                ->exists()) {
+                throw ValidationException::withMessages([
+                    'status' =>
+                        'An invoice with processed refunds cannot be voided.',
+                ]);
+            }
+
             $lockedInvoice->forceFill([
                 'status' => 'Void',
                 'voided_at' => now(),
                 'voided_by' => auth()->id(),
                 'void_reason' => $reason,
             ])->save();
+
+            $this->invoiceLedgers->recalculate($lockedInvoice);
+            $this->salesCompletion->synchronizeQuotation(
+                $lockedInvoice->quotation_id,
+            );
 
             return $lockedInvoice->refresh();
         }, attempts: 3);

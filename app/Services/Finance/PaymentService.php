@@ -73,11 +73,8 @@ class PaymentService
 
                 $this->assertQuotationCollectible($quotation);
 
-                $grandTotalCents = $this->toCents($quotation->grand_total);
-                $totalPaidCents = $this->activePaymentTotalCents($quotation);
-                $outstandingCents = max(
-                    $grandTotalCents - $totalPaidCents,
-                    0,
+                $outstandingCents = $this->availableBalanceCents(
+                    $quotation,
                 );
                 $amountCents = $this->toCents($validated['amount']);
 
@@ -178,6 +175,8 @@ class PaymentService
                     ->lockForUpdate()
                     ->findOrFail($payment->getKey());
 
+                $this->assertPaymentMutable($lockedPayment);
+
                 $originalQuotationId = $lockedPayment->quotation_id;
 
                 $quotationIds = collect([
@@ -214,13 +213,9 @@ class PaymentService
                 $amountCents = $this->toCents($validated['amount']);
                 $this->assertPositiveAmount($amountCents);
 
-                $availableCents = max(
-                    $this->toCents($targetQuotation->grand_total)
-                    - $this->activePaymentTotalCents(
-                        $targetQuotation,
-                        $lockedPayment->getKey(),
-                    ),
-                    0,
+                $availableCents = $this->availableBalanceCents(
+                    $targetQuotation,
+                    $lockedPayment->getKey(),
                 );
 
                 $this->assertAmountWithinAvailableBalance(
@@ -303,6 +298,8 @@ class PaymentService
                 ->lockForUpdate()
                 ->findOrFail($payment->getKey());
 
+            $this->assertPaymentMutable($lockedPayment);
+
             $quotationId = $lockedPayment->quotation_id;
             $invoiceIds = $this->allocations
                 ->invoiceIdsForPayment($lockedPayment);
@@ -348,11 +345,7 @@ class PaymentService
 
             $this->assertQuotationCollectible($quotation);
 
-            $availableCents = max(
-                $this->toCents($quotation->grand_total)
-                - $this->activePaymentTotalCents($quotation),
-                0,
-            );
+            $availableCents = $this->availableBalanceCents($quotation);
 
             $this->assertAmountWithinAvailableBalance(
                 $this->toCents($lockedPayment->amount),
@@ -391,6 +384,8 @@ class PaymentService
                 ->withTrashed()
                 ->lockForUpdate()
                 ->findOrFail($payment->getKey());
+
+            $this->assertPaymentMutable($lockedPayment);
 
             $quotationId = $lockedPayment->quotation_id;
             $invoiceIds = $this->allocations
@@ -583,6 +578,56 @@ class PaymentService
             throw ValidationException::withMessages([
                 'quotation_id' =>
                     'Payments cannot be recorded against an unavailable invoice.',
+            ]);
+        }
+    }
+
+    private function availableBalanceCents(
+        Quotation $quotation,
+        int|string|null $excludingPaymentId = null,
+    ): int {
+        $grossPaidCents = $this->activePaymentTotalCents(
+            $quotation,
+            $excludingPaymentId,
+        );
+
+        $invoice = $quotation->invoice()
+            ->where('status', '!=', 'Void')
+            ->lockForUpdate()
+            ->first();
+
+        if (! $invoice) {
+            return max(
+                $this->toCents($quotation->grand_total) - $grossPaidCents,
+                0,
+            );
+        }
+
+        $creditedCents = $this->toCents(
+            $invoice->creditNotes()
+                ->where('status', 'Issued')
+                ->sum('grand_total'),
+        );
+        $refundedCents = $this->toCents(
+            $invoice->refunds()
+                ->where('status', 'Processed')
+                ->sum('amount'),
+        );
+        $effectiveTotalCents = max(
+            $this->toCents($invoice->grand_total) - $creditedCents,
+            0,
+        );
+        $netPaidCents = max($grossPaidCents - $refundedCents, 0);
+
+        return max($effectiveTotalCents - $netPaidCents, 0);
+    }
+
+    private function assertPaymentMutable(Payment $payment): void
+    {
+        if ($payment->refunds()->where('status', 'Processed')->exists()) {
+            throw ValidationException::withMessages([
+                'payment_id' =>
+                    'A payment with a processed refund cannot be edited, moved, or deleted.',
             ]);
         }
     }

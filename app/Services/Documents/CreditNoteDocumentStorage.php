@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Storage;
 use InvalidArgumentException;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
-class InvoiceDocumentStorage
+class CreditNoteDocumentStorage
 {
     public const DISK = 'local';
 
@@ -130,7 +130,7 @@ class InvoiceDocumentStorage
 
         if (! $path) {
             throw new InvalidArgumentException(
-                'Invoice document path is required.',
+                'Credit-note document path is required.',
             );
         }
 
@@ -153,7 +153,7 @@ class InvoiceDocumentStorage
             || preg_match('#(^|/)\.\.?(/|$)#', $path)
         ) {
             throw new InvalidArgumentException(
-                'Invalid invoice document path.',
+                'Invalid credit-note document path.',
             );
         }
 

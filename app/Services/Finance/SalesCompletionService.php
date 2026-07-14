@@ -47,6 +47,11 @@ class SalesCompletionService
                 ? $invoice->status === 'Paid'
                 : $quotation->payment_status === 'Paid';
 
+            /*
+             * Completed quotations and Won leads are terminal commercial
+             * outcomes. Later refunds or credit notes adjust the finance
+             * ledger, but never silently reopen the CRM workflow.
+             */
             if (! $isComplete) {
                 return $quotation->refresh();
             }

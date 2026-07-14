@@ -32,6 +32,9 @@ class Invoice extends Model
         'discount_value',
         'tax',
         'grand_total',
+        'credited_total',
+        'refunded_total',
+        'net_total',
         'total_paid',
         'balance_due',
         'customer_notes',
@@ -45,6 +48,14 @@ class Invoice extends Model
         'verification_hash',
         'invoice_pdf',
         'invoice_generated_at',
+        'email_sent',
+        'email_sent_at',
+        'email_sent_by',
+        'email_send_count',
+        'last_sent_to',
+        'email_message_id',
+        'last_delivery_attempt_at',
+        'last_delivery_error',
         'is_active',
         'created_by',
         'updated_by',
@@ -57,11 +68,17 @@ class Invoice extends Model
         'discount_value' => 'decimal:2',
         'tax' => 'decimal:2',
         'grand_total' => 'decimal:2',
+        'credited_total' => 'decimal:2',
+        'refunded_total' => 'decimal:2',
+        'net_total' => 'decimal:2',
         'total_paid' => 'decimal:2',
         'balance_due' => 'decimal:2',
         'issued_at' => 'datetime',
         'voided_at' => 'datetime',
         'invoice_generated_at' => 'datetime',
+        'email_sent' => 'boolean',
+        'email_sent_at' => 'datetime',
+        'last_delivery_attempt_at' => 'datetime',
         'is_active' => 'boolean',
     ];
 
@@ -129,6 +146,16 @@ class Invoice extends Model
         return $this->hasMany(PaymentAllocation::class);
     }
 
+    public function creditNotes(): HasMany
+    {
+        return $this->hasMany(CreditNote::class);
+    }
+
+    public function refunds(): HasMany
+    {
+        return $this->hasMany(Refund::class);
+    }
+
     public function issuer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'issued_by');
@@ -139,6 +166,11 @@ class Invoice extends Model
         return $this->belongsTo(User::class, 'voided_by');
     }
 
+    public function emailSender(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'email_sent_by');
+    }
+
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
@@ -147,6 +179,21 @@ class Invoice extends Model
     public function updater(): BelongsTo
     {
         return $this->belongsTo(User::class, 'updated_by');
+    }
+
+    public function grossPaidAmount(): float
+    {
+        return round((float) $this->allocations()
+            ->whereHas('payment')
+            ->sum('amount'), 2);
+    }
+
+    public function refundableAmount(): float
+    {
+        return round(max(
+            $this->grossPaidAmount() - (float) $this->refunded_total,
+            0,
+        ), 2);
     }
 
     public static function nextInvoiceNumber(): string

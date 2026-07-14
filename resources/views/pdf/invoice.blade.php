@@ -13,9 +13,10 @@
         table.items { width: 100%; border-collapse: collapse; margin-top: 18px; }
         table.items th, table.items td { border: 1px solid #d1d5db; padding: 8px; }
         table.items th { background: #f3f4f6; text-align: left; }
-        .totals { width: 42%; margin-left: auto; margin-top: 18px; border-collapse: collapse; }
+        .totals { width: 46%; margin-left: auto; margin-top: 18px; border-collapse: collapse; }
         .totals td { padding: 6px; border-bottom: 1px solid #e5e7eb; }
         .grand { font-weight: bold; font-size: 14px; }
+        .adjustment { color: #991b1b; }
         .footer { margin-top: 32px; border-top: 1px solid #d1d5db; padding-top: 12px; }
     </style>
 </head>
@@ -83,8 +84,15 @@
     <tr><td>Subtotal</td><td class="right">{{ number_format((float) $invoice->subtotal, 2) }}</td></tr>
     <tr><td>Discount</td><td class="right">{{ number_format((float) $invoice->discount_value, 2) }}</td></tr>
     <tr><td>Tax</td><td class="right">{{ number_format((float) $invoice->tax, 2) }}</td></tr>
-    <tr class="grand"><td>Grand Total</td><td class="right">{{ number_format((float) $invoice->grand_total, 2) }}</td></tr>
-    <tr><td>Paid</td><td class="right">{{ number_format((float) $invoice->total_paid, 2) }}</td></tr>
+    <tr class="grand"><td>Original Total</td><td class="right">{{ number_format((float) $invoice->grand_total, 2) }}</td></tr>
+    @if ((float) $invoice->credited_total > 0)
+        <tr class="adjustment"><td>Credit Notes</td><td class="right">-{{ number_format((float) $invoice->credited_total, 2) }}</td></tr>
+    @endif
+    <tr class="grand"><td>Net Invoice Total</td><td class="right">{{ number_format((float) $invoice->net_total, 2) }}</td></tr>
+    @if ((float) $invoice->refunded_total > 0)
+        <tr class="adjustment"><td>Refunded</td><td class="right">{{ number_format((float) $invoice->refunded_total, 2) }}</td></tr>
+    @endif
+    <tr><td>Net Paid</td><td class="right">{{ number_format((float) $invoice->total_paid, 2) }}</td></tr>
     <tr class="grand"><td>Balance Due</td><td class="right">{{ number_format((float) $invoice->balance_due, 2) }}</td></tr>
 </table>
 
