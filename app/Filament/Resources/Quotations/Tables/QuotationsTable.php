@@ -111,6 +111,8 @@ class QuotationsTable
 
         ->requiresConfirmation()
 
+        ->authorize('approve')
+
         ->visible(fn (Quotation $record): bool => $record->status === 'Draft')
 
         ->action(function (Quotation $record): void {
@@ -143,6 +145,8 @@ class QuotationsTable
 
         ->color('warning')
 
+        ->authorize('receivePayment')
+
         ->visible(fn (Quotation $record): bool =>
 
     in_array($record->status, ['Approved', 'Completed'])
@@ -174,6 +178,8 @@ Action::make('sendQuotation')
     ->color('info')
 
     ->requiresConfirmation()
+
+    ->authorize('send')
 
     ->modalDescription(fn (Quotation $record): string =>
         'Send quotation to: ' . ($record->customer?->primary_email ?? 'No email available')
@@ -212,9 +218,12 @@ Action::make('sendQuotation')
 
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                    ForceDeleteBulkAction::make(),
-                    RestoreBulkAction::make(),
+                    DeleteBulkAction::make()
+                        ->authorizeIndividualRecords(),
+                    ForceDeleteBulkAction::make()
+                        ->authorizeIndividualRecords(),
+                    RestoreBulkAction::make()
+                        ->authorizeIndividualRecords(),
                 ]),
             ]);
     }

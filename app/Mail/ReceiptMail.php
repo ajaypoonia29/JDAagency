@@ -4,6 +4,7 @@ namespace App\Mail;
 
 use App\Models\Payment;
 use App\Services\CompanyService;
+use App\Services\Documents\PaymentDocumentStorage;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
@@ -30,27 +31,17 @@ class ReceiptMail extends Mailable
             )
             ->view('emails.receipt');
 
-        if (
-            $this->payment->receipt_pdf &&
-            storage_path('app/public/' . $this->payment->receipt_pdf)
-        ) {
+        $path = app(PaymentDocumentStorage::class)
+            ->absolutePath($this->payment->receipt_pdf);
 
-            $path = storage_path(
-                'app/public/' . $this->payment->receipt_pdf
+        if ($path) {
+            $mail->attach(
+                $path,
+                [
+                    'as' => $this->payment->receipt_number . '.pdf',
+                    'mime' => 'application/pdf',
+                ]
             );
-
-            if (file_exists($path)) {
-
-                $mail->attach(
-                    $path,
-                    [
-                        'as' => $this->payment->receipt_number . '.pdf',
-                        'mime' => 'application/pdf',
-                    ]
-                );
-
-            }
-
         }
 
         return $mail;

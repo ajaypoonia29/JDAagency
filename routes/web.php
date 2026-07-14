@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\PaymentDocumentController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReceiptVerificationController;
 use Illuminate\Support\Facades\Route;
@@ -40,6 +41,16 @@ Route::get('/dashboard', function () {
 */
 
 Route::middleware('auth')->group(function () {
+
+    Route::get(
+        '/finance/payments/{payment}/receipt',
+        [PaymentDocumentController::class, 'receipt']
+    )->name('finance.payments.receipt.download');
+
+    Route::get(
+        '/finance/payments/{payment}/statement',
+        [PaymentDocumentController::class, 'statement']
+    )->name('finance.payments.statement.download');
 
     Route::get('/profile', [ProfileController::class, 'edit'])
         ->name('profile.edit');

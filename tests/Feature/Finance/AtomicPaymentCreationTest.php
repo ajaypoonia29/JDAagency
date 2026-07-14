@@ -143,6 +143,7 @@ class AtomicPaymentCreationTest extends TestCase
 
     public function test_receipt_failure_rolls_back_payment_and_removes_file(): void
     {
+        Storage::fake('local');
         Storage::fake('public');
 
         $customer = $this->createCustomer('CUS-ATOMIC-0004');

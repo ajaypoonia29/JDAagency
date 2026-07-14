@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Payment;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Storage;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class ReceiptService
@@ -39,7 +40,7 @@ class ReceiptService
 
         $relativePath = 'receipts/' . $fileName;
 
-        $absolutePath = storage_path('app/public/' . $relativePath);
+        $absolutePath = Storage::disk('local')->path($relativePath);
 
         if (! is_dir(dirname($absolutePath))) {
             mkdir(dirname($absolutePath), 0755, true);

@@ -4,7 +4,6 @@ namespace App\Filament\Resources\Payments\Tables;
 
 use App\Models\Payment;
 use App\Services\Communication\CommunicationService;
-use App\Services\Documents\DocumentService;
 use App\Services\Finance\PaymentService;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
@@ -17,7 +16,6 @@ use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
-use Illuminate\Support\Facades\Storage;
 
 class PaymentsTable
 {
@@ -135,6 +133,7 @@ class PaymentsTable
                     ->label('Receipt')
                     ->icon('heroicon-o-document-arrow-down')
                     ->color('success')
+                    ->authorize('downloadReceipt')
                     ->visible(
                         fn (Payment $record): bool =>
                             $record->receipt_generated
@@ -142,7 +141,10 @@ class PaymentsTable
                     )
                     ->url(
                         fn (Payment $record): string =>
-                            Storage::url($record->receipt_pdf)
+                            route(
+                                'finance.payments.receipt.download',
+                                $record,
+                            )
                     )
                     ->openUrlInNewTab(),
 
@@ -150,27 +152,19 @@ class PaymentsTable
                     ->label('Statement')
                     ->icon('heroicon-o-document-text')
                     ->color('info')
+                    ->authorize('downloadStatement')
                     ->visible(
                         fn (Payment $record): bool =>
                             $record->receipt_generated
                     )
-                    ->action(function (Payment $record): void {
-
-                        if (
-                            blank($record->statement_pdf)
-                            || ! Storage::disk('public')
-                                ->exists($record->statement_pdf)
-                        ) {
-                            DocumentService::paymentStatement($record);
-
-                            $record->refresh();
-                        }
-
-                        redirect(
-                            Storage::url($record->statement_pdf)
-                        );
-
-                    }),
+                    ->url(
+                        fn (Payment $record): string =>
+                            route(
+                                'finance.payments.statement.download',
+                                $record,
+                            )
+                    )
+                    ->openUrlInNewTab(),
 
                 Action::make('sendWhatsapp')
                     ->label(
@@ -182,6 +176,7 @@ class PaymentsTable
                     ->icon('heroicon-o-chat-bubble-left-right')
                     ->color('success')
                     ->requiresConfirmation()
+                    ->authorize('sendReceipt')
                     ->visible(
                         fn (Payment $record): bool =>
                             $record->receipt_generated
@@ -218,6 +213,7 @@ class PaymentsTable
                     ->icon('heroicon-o-envelope')
                     ->color('info')
                     ->requiresConfirmation()
+                    ->authorize('sendReceipt')
                     ->visible(
                         fn (Payment $record): bool =>
                             $record->receipt_generated
@@ -281,18 +277,21 @@ class PaymentsTable
                 BulkActionGroup::make([
 
                     DeleteBulkAction::make()
+                        ->authorizeIndividualRecords()
                         ->using(
                             fn (Payment $record): bool =>
                                 app(PaymentService::class)->delete($record)
                         ),
 
                     ForceDeleteBulkAction::make()
+                        ->authorizeIndividualRecords()
                         ->using(
                             fn (Payment $record): bool =>
                                 app(PaymentService::class)->forceDelete($record)
                         ),
 
                     RestoreBulkAction::make()
+                        ->authorizeIndividualRecords()
                         ->using(
                             fn (Payment $record): bool =>
                                 app(PaymentService::class)->restore($record)

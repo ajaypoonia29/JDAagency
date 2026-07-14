@@ -22,6 +22,7 @@ class PaymentMutationIntegrityTest extends TestCase
 
     public function test_update_recalculates_ledger_and_preserves_receipt_identity(): void
     {
+        Storage::fake('local');
         Storage::fake('public');
 
         $customer = $this->createCustomer('CUS-MUT-0001');
@@ -197,6 +198,7 @@ class PaymentMutationIntegrityTest extends TestCase
 
     public function test_failed_receipt_regeneration_rolls_back_and_restores_old_file(): void
     {
+        Storage::fake('local');
         Storage::fake('public');
 
         $customer = $this->createCustomer('CUS-MUT-0006');
@@ -269,6 +271,7 @@ class PaymentMutationIntegrityTest extends TestCase
 
     public function test_delete_restore_and_force_delete_keep_ledger_and_files_consistent(): void
     {
+        Storage::fake('local');
         Storage::fake('public');
 
         $customer = $this->createCustomer('CUS-MUT-0007');

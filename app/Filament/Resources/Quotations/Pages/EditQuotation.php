@@ -21,6 +21,7 @@ class EditQuotation extends EditRecord
             Action::make('downloadPdf')
                 ->label('Download PDF')
                 ->icon('heroicon-o-document-arrow-down')
+                ->authorize('download')
                 ->action(function (QuotationPdfService $pdf) {
 
                     return response()->streamDownload(

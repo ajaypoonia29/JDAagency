@@ -7,10 +7,10 @@ namespace App\Services\Finance;
 use App\Models\Payment;
 use App\Models\Quotation;
 use App\Services\Documents\DocumentService;
+use App\Services\Documents\PaymentDocumentStorage;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use Throwable;
@@ -19,6 +19,7 @@ class PaymentService
 {
     public function __construct(
         private readonly DocumentService $documents,
+        private readonly PaymentDocumentStorage $documentStorage,
     ) {
     }
 
@@ -358,7 +359,7 @@ class PaymentService
         });
 
         if ($deleted && $documentPaths !== []) {
-            Storage::disk('public')->delete($documentPaths);
+            $this->documentStorage->delete($documentPaths);
         }
 
         return $deleted;
@@ -458,7 +459,12 @@ class PaymentService
     }
 
     /**
-     * @return array{path: ?string, existed: bool, contents: ?string}
+     * @return array{
+     *     path: ?string,
+     *     disk: ?string,
+     *     existed: bool,
+     *     contents: ?string
+     * }
      */
     private function captureReceiptSnapshot(Payment $payment): array
     {
@@ -466,49 +472,25 @@ class PaymentService
             ? $payment->receipt_pdf
             : $this->expectedReceiptPath($payment->receipt_number);
 
-        $existed = filled($path)
-            && Storage::disk('public')->exists($path);
-
-        return [
-            'path' => $path,
-            'existed' => $existed,
-            'contents' => $existed
-                ? Storage::disk('public')->get($path)
-                : null,
-        ];
+        return $this->documentStorage->snapshot($path);
     }
 
     /**
-     * @param array{path: ?string, existed: bool, contents: ?string}|null $snapshot
+     * @param array{
+     *     path: ?string,
+     *     disk: ?string,
+     *     existed: bool,
+     *     contents: ?string
+     * }|null $snapshot
      */
     private function restoreReceiptSnapshot(
         ?array $snapshot,
         ?string $generatedPath,
     ): void {
-        $disk = Storage::disk('public');
-        $snapshotPath = $snapshot['path'] ?? null;
-
-        if (
-            filled($generatedPath)
-            && $generatedPath !== $snapshotPath
-        ) {
-            $disk->delete($generatedPath);
-        }
-
-        if (! filled($snapshotPath)) {
-            return;
-        }
-
-        if (($snapshot['existed'] ?? false) === true) {
-            $disk->put(
-                $snapshotPath,
-                (string) ($snapshot['contents'] ?? ''),
-            );
-
-            return;
-        }
-
-        $disk->delete($snapshotPath);
+        $this->documentStorage->restore(
+            $snapshot,
+            $generatedPath,
+        );
     }
 
     private function expectedReceiptPath(?string $receiptNumber): ?string
@@ -526,7 +508,7 @@ class PaymentService
             ?: $this->expectedReceiptPath($receiptNumber);
 
         if ($path) {
-            Storage::disk('public')->delete($path);
+            $this->documentStorage->delete($path);
         }
     }
 

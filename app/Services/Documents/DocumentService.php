@@ -16,19 +16,33 @@ class DocumentService
     }
 
     /**
-     * Generate a payment receipt PDF.
+     * Instance-based payment statement generation.
      */
-    public static function receipt(Payment $payment): string
+    public function generatePaymentStatement(Payment $payment): string
     {
-        return ReceiptGenerator::generate($payment);
+        return static::paymentStatement($payment);
     }
 
     /**
-     * Generate a payment statement PDF.
+     * Generate a payment receipt PDF and move it to private storage.
+     */
+    public static function receipt(Payment $payment): string
+    {
+        $path = ReceiptGenerator::generate($payment);
+
+        return app(PaymentDocumentStorage::class)
+            ->privatize($path);
+    }
+
+    /**
+     * Generate a payment statement PDF and move it to private storage.
      */
     public static function paymentStatement(Payment $payment): string
     {
-        return PaymentStatementGenerator::generate($payment);
+        $path = PaymentStatementGenerator::generate($payment);
+
+        return app(PaymentDocumentStorage::class)
+            ->privatize($path);
     }
 
     /**

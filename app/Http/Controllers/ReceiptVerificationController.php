@@ -11,7 +11,10 @@ class ReceiptVerificationController extends Controller
         $payment = Payment::with([
             'customer',
             'quotation',
-        ])->where('verification_hash', $hash)->first();
+        ])
+            ->where('verification_hash', $hash)
+            ->where('receipt_generated', true)
+            ->first();
 
         if (! $payment) {
             abort(404);
