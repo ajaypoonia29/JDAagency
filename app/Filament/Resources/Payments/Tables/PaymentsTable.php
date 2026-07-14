@@ -16,6 +16,7 @@ use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 
 class PaymentsTable
 {
@@ -294,24 +295,45 @@ class PaymentsTable
 
                     DeleteBulkAction::make()
                         ->authorizeIndividualRecords()
-                        ->using(
-                            fn (Payment $record): bool =>
-                                app(PaymentService::class)->delete($record)
-                        ),
+                        ->using(function (
+                            EloquentCollection $records,
+                        ): void {
+                            $payments = app(PaymentService::class);
+
+                            foreach ($records as $record) {
+                                if ($record instanceof Payment) {
+                                    $payments->delete($record);
+                                }
+                            }
+                        }),
 
                     ForceDeleteBulkAction::make()
                         ->authorizeIndividualRecords()
-                        ->using(
-                            fn (Payment $record): bool =>
-                                app(PaymentService::class)->forceDelete($record)
-                        ),
+                        ->using(function (
+                            EloquentCollection $records,
+                        ): void {
+                            $payments = app(PaymentService::class);
+
+                            foreach ($records as $record) {
+                                if ($record instanceof Payment) {
+                                    $payments->forceDelete($record);
+                                }
+                            }
+                        }),
 
                     RestoreBulkAction::make()
                         ->authorizeIndividualRecords()
-                        ->using(
-                            fn (Payment $record): bool =>
-                                app(PaymentService::class)->restore($record)
-                        ),
+                        ->using(function (
+                            EloquentCollection $records,
+                        ): void {
+                            $payments = app(PaymentService::class);
+
+                            foreach ($records as $record) {
+                                if ($record instanceof Payment) {
+                                    $payments->restore($record);
+                                }
+                            }
+                        }),
 
                 ]),
 
