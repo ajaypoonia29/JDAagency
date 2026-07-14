@@ -2,9 +2,12 @@
 
 namespace App\Filament\Resources\Quotations\Tables;
 
+use App\Filament\Resources\Invoices\InvoiceResource;
 use App\Filament\Resources\Payments\PaymentResource;
+use App\Models\Invoice;
 use App\Models\Quotation;
 use App\Services\CRM\QuotationWorkflowService;
+use App\Services\Finance\InvoiceService;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -16,6 +19,7 @@ use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Gate;
 
 class QuotationsTable
 {
@@ -91,6 +95,60 @@ class QuotationsTable
                 TrashedFilter::make(),
             ])
             ->recordActions([
+                Action::make('createInvoice')
+                    ->label('Create Invoice')
+                    ->icon('heroicon-o-document-plus')
+                    ->color('primary')
+                    ->requiresConfirmation()
+                    ->visible(
+                        fn (Quotation $record): bool =>
+                            ! $record->invoice()->exists()
+                            && in_array(
+                                $record->status,
+                                ['Approved', 'Sent', 'Accepted', 'Completed'],
+                                true,
+                            )
+                            && auth()->user()?->can(
+                                'create',
+                                Invoice::class,
+                            ) === true,
+                    )
+                    ->action(function (Quotation $record) {
+                        Gate::authorize('create', Invoice::class);
+
+                        $invoice = app(InvoiceService::class)
+                            ->createFromQuotation($record);
+
+                        Notification::make()
+                            ->title('Invoice draft created.')
+                            ->success()
+                            ->send();
+
+                        return redirect()->to(
+                            InvoiceResource::getUrl('edit', [
+                                'record' => $invoice,
+                            ]),
+                        );
+                    }),
+
+                Action::make('viewInvoice')
+                    ->label('View Invoice')
+                    ->icon('heroicon-o-document-text')
+                    ->visible(
+                        fn (Quotation $record): bool =>
+                            $record->invoice()->exists()
+                            && auth()->user()?->can(
+                                'view',
+                                $record->invoice,
+                            ) === true,
+                    )
+                    ->url(
+                        fn (Quotation $record): string =>
+                            InvoiceResource::getUrl('view', [
+                                'record' => $record->invoice,
+                            ]),
+                    ),
+
                 Action::make('approve')
                     ->label('Approve')
                     ->icon('heroicon-o-check-circle')

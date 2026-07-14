@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\InvoiceDocumentController;
 use App\Http\Controllers\PaymentDocumentController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReceiptVerificationController;
@@ -41,6 +42,11 @@ Route::get('/dashboard', function () {
 */
 
 Route::middleware('auth')->group(function () {
+
+    Route::get(
+        '/finance/invoices/{invoice}/download',
+        [InvoiceDocumentController::class, 'download']
+    )->name('finance.invoices.download');
 
     Route::get(
         '/finance/payments/{payment}/receipt',

@@ -243,6 +243,9 @@ class QuotationForm
         Repeater::make('items')
             ->label('Quotation Items')
             ->relationship()
+            ->disabled(
+                fn ($record): bool => filled($record?->invoice),
+            )
             ->defaultItems(1)
             ->collapsible()
             ->cloneable()

@@ -20,6 +20,9 @@ class PaymentService
     public function __construct(
         private readonly DocumentService $documents,
         private readonly PaymentDocumentStorage $documentStorage,
+        private readonly InvoiceLedgerService $invoiceLedgers,
+        private readonly PaymentAllocationService $allocations,
+        private readonly SalesCompletionService $salesCompletion,
     ) {
     }
 
@@ -68,6 +71,8 @@ class PaymentService
                     ]);
                 }
 
+                $this->assertQuotationCollectible($quotation);
+
                 $grandTotalCents = $this->toCents($quotation->grand_total);
                 $totalPaidCents = $this->activePaymentTotalCents($quotation);
                 $outstandingCents = max(
@@ -109,6 +114,9 @@ class PaymentService
                 $payment = Payment::query()->create($paymentData);
 
                 $payment->completePayment();
+
+                $this->allocations->sync($payment);
+                $this->salesCompletion->synchronizeQuotation($quotation);
 
                 $receiptGenerationStarted = true;
                 $receiptPath = $this->documents->generateReceipt($payment);
@@ -170,6 +178,8 @@ class PaymentService
                     ->lockForUpdate()
                     ->findOrFail($payment->getKey());
 
+                $originalQuotationId = $lockedPayment->quotation_id;
+
                 $quotationIds = collect([
                     $lockedPayment->quotation_id,
                     (int) $validated['quotation_id'],
@@ -198,6 +208,8 @@ class PaymentService
                         'quotation_id' => 'The selected quotation is unavailable.',
                     ]);
                 }
+
+                $this->assertQuotationCollectible($targetQuotation);
 
                 $amountCents = $this->toCents($validated['amount']);
                 $this->assertPositiveAmount($amountCents);
@@ -252,6 +264,12 @@ class PaymentService
 
                 $lockedPayment->save();
 
+                $this->allocations->sync($lockedPayment);
+                $this->salesCompletion->synchronizeMany([
+                    $originalQuotationId,
+                    $targetQuotation->getKey(),
+                ]);
+
                 if ($receiptNeedsRegeneration) {
                     $receiptGenerationStarted = true;
                     $generatedReceiptPath = $this->documents
@@ -285,9 +303,21 @@ class PaymentService
                 ->lockForUpdate()
                 ->findOrFail($payment->getKey());
 
-            $this->lockQuotation($lockedPayment->quotation_id);
+            $quotationId = $lockedPayment->quotation_id;
+            $invoiceIds = $this->allocations
+                ->invoiceIdsForPayment($lockedPayment);
 
-            return (bool) $lockedPayment->delete();
+            $this->lockQuotation($quotationId);
+
+            $deleted = (bool) $lockedPayment->delete();
+
+            if ($deleted) {
+                $this->invoiceLedgers->recalculateMany($invoiceIds);
+                $this->salesCompletion
+                    ->synchronizeQuotation($quotationId);
+            }
+
+            return $deleted;
         });
     }
 
@@ -316,6 +346,8 @@ class PaymentService
                 ]);
             }
 
+            $this->assertQuotationCollectible($quotation);
+
             $availableCents = max(
                 $this->toCents($quotation->grand_total)
                 - $this->activePaymentTotalCents($quotation),
@@ -327,7 +359,15 @@ class PaymentService
                 $availableCents,
             );
 
-            return (bool) $lockedPayment->restore();
+            $restored = (bool) $lockedPayment->restore();
+
+            if ($restored) {
+                $this->allocations->sync($lockedPayment);
+                $this->salesCompletion
+                    ->synchronizeQuotation($quotation);
+            }
+
+            return $restored;
         });
     }
 
@@ -338,17 +378,25 @@ class PaymentService
     public function forceDelete(Payment $payment): bool
     {
         $documentPaths = [];
+        $invoiceIds = [];
+        $quotationId = null;
 
         $deleted = DB::transaction(function () use (
             $payment,
             &$documentPaths,
+            &$invoiceIds,
+            &$quotationId,
         ): bool {
             $lockedPayment = Payment::query()
                 ->withTrashed()
                 ->lockForUpdate()
                 ->findOrFail($payment->getKey());
 
-            $this->lockQuotation($lockedPayment->quotation_id);
+            $quotationId = $lockedPayment->quotation_id;
+            $invoiceIds = $this->allocations
+                ->invoiceIdsForPayment($lockedPayment);
+
+            $this->lockQuotation($quotationId);
 
             $documentPaths = array_values(array_filter([
                 $lockedPayment->receipt_pdf,
@@ -357,6 +405,12 @@ class PaymentService
 
             return (bool) $lockedPayment->forceDelete();
         });
+
+        if ($deleted) {
+            $this->invoiceLedgers->recalculateMany($invoiceIds);
+            $this->salesCompletion
+                ->synchronizeQuotation($quotationId);
+        }
 
         if ($deleted && $documentPaths !== []) {
             $this->documentStorage->delete($documentPaths);
@@ -390,6 +444,11 @@ class PaymentService
                     ->findOrFail($payment->getKey());
 
                 $lockedPayment->completePayment();
+
+                $this->allocations->sync($lockedPayment);
+                $this->salesCompletion->synchronizeQuotation(
+                    $lockedPayment->quotation_id,
+                );
 
                 $receiptGenerationStarted = true;
                 $receiptPath = $this->documents
@@ -509,6 +568,22 @@ class PaymentService
 
         if ($path) {
             $this->documentStorage->delete($path);
+        }
+    }
+
+    private function assertQuotationCollectible(
+        Quotation $quotation,
+    ): void {
+        $invoice = $quotation->invoice()
+            ->withTrashed()
+            ->lockForUpdate()
+            ->first();
+
+        if ($invoice?->trashed() || $invoice?->status === 'Void') {
+            throw ValidationException::withMessages([
+                'quotation_id' =>
+                    'Payments cannot be recorded against an unavailable invoice.',
+            ]);
         }
     }
 

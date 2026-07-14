@@ -102,6 +102,7 @@ class QuotationWorkflowService
             $data,
         ): Quotation {
             $lockedQuotation = Quotation::query()
+                ->with('invoice')
                 ->lockForUpdate()
                 ->findOrFail($quotation->getKey());
 
@@ -126,6 +127,30 @@ class QuotationWorkflowService
             );
 
             $payload = Arr::only($data, self::WRITABLE_FIELDS);
+
+            $financialFields = [
+                'subtotal',
+                'discount_type',
+                'discount_value',
+                'tax_applicable',
+                'tax_percentage',
+                'tax',
+                'grand_total',
+            ];
+
+            $financialChanged = collect($financialFields)->contains(
+                fn (string $field): bool =>
+                    array_key_exists($field, $payload)
+                    && (string) $payload[$field]
+                        !== (string) $lockedQuotation->getAttribute($field),
+            );
+
+            if ($lockedQuotation->invoice && $financialChanged) {
+                throw ValidationException::withMessages([
+                    'grand_total' =>
+                        'Quotation financials cannot change after an invoice has been created.',
+                ]);
+            }
 
             if (array_key_exists('grand_total', $payload)) {
                 $paid = (float) $lockedQuotation

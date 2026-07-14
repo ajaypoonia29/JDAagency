@@ -6,7 +6,9 @@ use App\Services\Finance\QuotationLedgerService;
 use App\Traits\HasCreatedUpdatedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Validation\ValidationException;
 
 class Quotation extends Model
 {
@@ -205,6 +207,11 @@ class Quotation extends Model
         return $this->hasMany(Payment::class);
     }
 
+    public function invoice(): HasOne
+    {
+        return $this->hasOne(Invoice::class);
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Model Events
@@ -213,6 +220,26 @@ class Quotation extends Model
 
     protected static function booted(): void
     {
+        static::updating(function (Quotation $quotation): void {
+            if (
+                $quotation->isDirty([
+                    'subtotal',
+                    'discount_type',
+                    'discount_value',
+                    'tax_applicable',
+                    'tax_percentage',
+                    'tax',
+                    'grand_total',
+                ])
+                && $quotation->invoice()->exists()
+            ) {
+                throw ValidationException::withMessages([
+                    'grand_total' =>
+                        'Quotation financials cannot change after an invoice has been created.',
+                ]);
+            }
+        });
+
         static::creating(function (Quotation $quotation) {
 
             $quotation->total_paid = 0;

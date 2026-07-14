@@ -6,6 +6,8 @@ use App\Services\Finance\QuotationLedgerService;
 use App\Traits\HasCreatedUpdatedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 
@@ -58,7 +60,7 @@ class Payment extends Model
 	'receipt_pdf',
 
 	'receipt_generated_at',
-	
+
 	'statement_pdf',
 
 	'statement_generated_at',
@@ -106,6 +108,19 @@ class Payment extends Model
     public function customer()
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    public function allocations(): HasMany
+    {
+        return $this->hasMany(PaymentAllocation::class);
+    }
+
+    public function invoices(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            Invoice::class,
+            'payment_allocations',
+        )->withPivot('amount')->withTimestamps();
     }
 
     public function creator()
@@ -184,16 +199,6 @@ public function completePayment(): void
 
     ]);
 
-    // If the quotation has now been fully paid,
-    // mark the workflow as Completed.
-    if (
-        $this->quotation &&
-        $this->quotation->fresh()->payment_status === 'Paid'
-    ) {
-        $this->quotation->update([
-            'status' => 'Completed',
-        ]);
-    }
 }
 
 public function updateQuotationLedger(): void
@@ -238,5 +243,5 @@ public function verificationUrl(): string
         'hash' => $this->verification_hash,
     ]);
 }
-    
+
 }

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Validation\ValidationException;
 
 class QuotationItem extends Model
 {
@@ -50,6 +51,32 @@ class QuotationItem extends Model
         'discount'   => 'decimal:2',
         'line_total' => 'decimal:2',
     ];
+
+    protected static function booted(): void
+    {
+        $assertMutable = function (QuotationItem $item): void {
+            $quotationId = $item->quotation_id
+                ?: $item->getOriginal('quotation_id');
+
+            if (
+                $quotationId
+                && Quotation::query()
+                    ->whereKey($quotationId)
+                    ->whereHas('invoice')
+                    ->exists()
+            ) {
+                throw ValidationException::withMessages([
+                    'items' =>
+                        'Quotation items cannot change after an invoice has been created.',
+                ]);
+            }
+        };
+
+        static::creating($assertMutable);
+        static::updating($assertMutable);
+        static::deleting($assertMutable);
+        static::restoring($assertMutable);
+    }
 
     /*
     |--------------------------------------------------------------------------
