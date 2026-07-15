@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
+use Livewire\Attributes\On;
 use UnitEnum;
 
 class SalesWorkspace extends Page
@@ -248,7 +249,12 @@ class SalesWorkspace extends Page
         $this->selectedLeadId = null;
     }
 
-    /**
+
+    #[On('sales-workspace-updated')]
+    public function refreshWorkspace(): void
+    {
+    }
+/**
      * @return Collection<int, Lead>
      */
     private function filteredLeads(): Collection

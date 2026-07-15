@@ -825,9 +825,12 @@
                                 <x-filament::button wire:click="openMeetingForm" wire:loading.attr="disabled">
                                     Schedule Meeting
                                 </x-filament::button>
-                            @elseif ($nextAction['key'] === 'create-quotation' && $quotationCreateUrl)
-                                <x-filament::button tag="a" href="{{ $quotationCreateUrl }}">
-                                    Open Quotation Builder
+                            @elseif ($nextAction['key'] === 'create-quotation')
+                                <x-filament::button
+                                    type="button"
+                                    x-on:click="document.getElementById('asw-quotation-workspace')?.scrollIntoView({ behavior: 'smooth', block: 'start' })"
+                                >
+                                    Build Quotation Here
                                 </x-filament::button>
                             @endif
 
@@ -845,6 +848,10 @@
                         </div>
                     </section>
 
+                    <livewire:sales-workspace-quotation
+                        :lead-id="$selectedLead->getKey()"
+                        :key="'sales-workspace-quotation-'.$selectedLead->getKey()"
+                    />
                     @if ($showMeetingForm)
                         <section class="asw-card asw-section">
                             <div class="asw-section__head">
