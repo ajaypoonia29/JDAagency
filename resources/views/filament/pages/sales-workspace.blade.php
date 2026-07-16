@@ -82,6 +82,17 @@
             border-bottom: 1px solid var(--asw-border);
         }
 
+        .asw-pipeline__heading {
+            align-items: flex-start;
+            display: flex;
+            gap: 0.75rem;
+            justify-content: space-between;
+        }
+
+        .asw-lead-intake {
+            scroll-margin-top: 5rem;
+        }
+
         .asw-title {
             color: var(--asw-text);
             font-size: 1rem;
@@ -676,13 +687,272 @@
             @endforeach
         </section>
 
+        @if ($showLeadForm)
+            <section
+                id="asw-lead-intake"
+                class="asw-card asw-section asw-lead-intake"
+                x-init="$nextTick(() => $el.scrollIntoView({ behavior: 'smooth', block: 'start' }))"
+            >
+                <div class="asw-section__head">
+                    <div>
+                        <h2 class="asw-section__title">
+                            Add a lead
+                        </h2>
+                        <div class="asw-muted">
+                            The customer will be created or reused automatically.
+                        </div>
+                    </div>
+
+                    <button
+                        type="button"
+                        wire:click="closeLeadForm"
+                        class="asw-link"
+                    >
+                        Close
+                    </button>
+                </div>
+
+                <form
+                    wire:submit="createLead"
+                    class="asw-form-grid"
+                >
+                    <label class="asw-field">
+                        <span class="asw-field__label">
+                            Company name
+                        </span>
+                        <input
+                            type="text"
+                            wire:model="leadCompanyName"
+                            class="asw-control"
+                        />
+                        @error('leadCompanyName')
+                            <span class="asw-error">{{ $message }}</span>
+                        @enderror
+                    </label>
+
+                    <label class="asw-field">
+                        <span class="asw-field__label">
+                            Contact person *
+                        </span>
+                        <input
+                            type="text"
+                            wire:model="leadContactPerson"
+                            class="asw-control"
+                            required
+                        />
+                        @error('leadContactPerson')
+                            <span class="asw-error">{{ $message }}</span>
+                        @enderror
+                    </label>
+
+                    <label class="asw-field">
+                        <span class="asw-field__label">
+                            Email *
+                        </span>
+                        <input
+                            type="email"
+                            wire:model="leadEmail"
+                            class="asw-control"
+                            required
+                        />
+                        @error('leadEmail')
+                            <span class="asw-error">{{ $message }}</span>
+                        @enderror
+                    </label>
+
+                    <label class="asw-field">
+                        <span class="asw-field__label">
+                            Phone *
+                        </span>
+                        <input
+                            type="tel"
+                            wire:model="leadPhone"
+                            class="asw-control"
+                            required
+                        />
+                        @error('leadPhone')
+                            <span class="asw-error">{{ $message }}</span>
+                        @enderror
+                    </label>
+
+                    <label class="asw-field">
+                        <span class="asw-field__label">
+                            WhatsApp
+                        </span>
+                        <input
+                            type="tel"
+                            wire:model="leadWhatsapp"
+                            class="asw-control"
+                        />
+                        @error('leadWhatsapp')
+                            <span class="asw-error">{{ $message }}</span>
+                        @enderror
+                    </label>
+
+                    <label class="asw-field">
+                        <span class="asw-field__label">
+                            Priority
+                        </span>
+                        <select
+                            wire:model="leadPriority"
+                            class="asw-control"
+                        >
+                            @foreach (['Low', 'Medium', 'High', 'Urgent'] as $priority)
+                                <option value="{{ $priority }}">
+                                    {{ $priority }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </label>
+
+                    <label class="asw-field">
+                        <span class="asw-field__label">
+                            Lead source
+                        </span>
+                        <input
+                            type="text"
+                            wire:model="leadSource"
+                            class="asw-control"
+                        />
+                    </label>
+
+                    <label class="asw-field">
+                        <span class="asw-field__label">
+                            Estimated value
+                        </span>
+                        <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            wire:model="leadEstimatedValue"
+                            class="asw-control"
+                        />
+                        @error('leadEstimatedValue')
+                            <span class="asw-error">{{ $message }}</span>
+                        @enderror
+                    </label>
+
+                    <label class="asw-field">
+                        <span class="asw-field__label">
+                            Industry
+                        </span>
+                        <input
+                            type="text"
+                            wire:model="leadIndustry"
+                            class="asw-control"
+                        />
+                    </label>
+
+                    <label class="asw-field">
+                        <span class="asw-field__label">
+                            Business type
+                        </span>
+                        <input
+                            type="text"
+                            wire:model="leadBusinessType"
+                            class="asw-control"
+                        />
+                    </label>
+
+                    <label class="asw-field asw-span-2">
+                        <span class="asw-field__label">
+                            Assigned employee
+                        </span>
+                        <select
+                            wire:model.number="leadAssignedEmployeeId"
+                            class="asw-control"
+                        >
+                            <option value="">Unassigned</option>
+
+                            @foreach ($leadEmployees as $employee)
+                                <option value="{{ $employee->getKey() }}">
+                                    {{ $employee->full_name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('leadAssignedEmployeeId')
+                            <span class="asw-error">{{ $message }}</span>
+                        @enderror
+                    </label>
+
+                    <label class="asw-field asw-span-2">
+                        <span class="asw-field__label">
+                            Requirements summary
+                        </span>
+                        <textarea
+                            wire:model="leadRequirementsSummary"
+                            rows="4"
+                            class="asw-control"
+                        ></textarea>
+                        @error('leadRequirementsSummary')
+                            <span class="asw-error">{{ $message }}</span>
+                        @enderror
+                    </label>
+
+                    <div
+                        class="asw-span-2 asw-actions"
+                        style="justify-content: flex-end;"
+                    >
+                        <x-filament::button
+                            type="button"
+                            color="gray"
+                            outlined
+                            wire:click="closeLeadForm"
+                            wire:loading.attr="disabled"
+                            wire:target="createLead"
+                        >
+                            Cancel
+                        </x-filament::button>
+
+                        <x-filament::button
+                            type="submit"
+                            wire:loading.attr="disabled"
+                            wire:target="createLead"
+                        >
+                            <span
+                                wire:loading.remove
+                                wire:target="createLead"
+                            >
+                                Create Lead
+                            </span>
+
+                            <span
+                                wire:loading
+                                wire:target="createLead"
+                            >
+                                Creating...
+                            </span>
+                        </x-filament::button>
+                    </div>
+                </form>
+            </section>
+        @endif
+
         <div class="asw-shell">
             <aside class="asw-card asw-pipeline">
                 <div class="asw-pipeline__head">
-                    <h2 class="asw-title">Sales pipeline</h2>
-                    <p class="asw-subtitle">
-                        Select a lead and continue the complete journey here.
-                    </p>
+                    <div class="asw-pipeline__heading">
+                        <div>
+                            <h2 class="asw-title">
+                                Sales pipeline
+                            </h2>
+                            <p class="asw-subtitle">
+                                Select a lead and continue the complete journey here.
+                            </p>
+                        </div>
+
+                        @if ($canCreateLead)
+                            <x-filament::button
+                                type="button"
+                                size="sm"
+                                wire:click="openLeadForm"
+                                wire:loading.attr="disabled"
+                                wire:target="openLeadForm"
+                            >
+                                + Add Lead
+                            </x-filament::button>
+                        @endif
+                    </div>
 
                     <div class="asw-controls">
                         <input

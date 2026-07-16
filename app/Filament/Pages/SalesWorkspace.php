@@ -9,6 +9,7 @@ use App\Models\Employee;
 use App\Models\Lead;
 use App\Models\Meeting;
 use App\Services\CRM\LeadStatusService;
+use App\Services\CRM\LeadWorkflowService;
 use App\Services\CRM\MeetingWorkflowService;
 use App\Services\CRM\SalesJourneyService;
 use BackedEnum;
@@ -18,6 +19,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\On;
 use UnitEnum;
 
@@ -53,6 +55,32 @@ class SalesWorkspace extends Page
     public string $status = 'all';
 
     public ?int $selectedLeadId = null;
+
+    public bool $showLeadForm = false;
+
+    public string $leadCompanyName = '';
+
+    public string $leadContactPerson = '';
+
+    public string $leadEmail = '';
+
+    public string $leadPhone = '';
+
+    public string $leadWhatsapp = '';
+
+    public string $leadSource = '';
+
+    public string $leadPriority = 'Medium';
+
+    public string $leadIndustry = '';
+
+    public string $leadBusinessType = '';
+
+    public string $leadEstimatedValue = '0';
+
+    public ?int $leadAssignedEmployeeId = null;
+
+    public string $leadRequirementsSummary = '';
 
     public bool $showMeetingForm = false;
 
@@ -106,6 +134,14 @@ class SalesWorkspace extends Page
             'leads' => $leads,
             'selectedLead' => $lead,
             'statusOptions' => self::STATUS_OPTIONS,
+            'canCreateLead' => Gate::allows(
+                'create',
+                Lead::class,
+            ),
+            'leadEmployees' => Employee::query()
+                ->where('is_active', true)
+                ->orderBy('full_name')
+                ->get(['id', 'full_name']),
             'leadDisplayStatuses' => $leadDisplayStatuses,
             'selectedLeadDisplayStatus' => $lead
                 ? $journey->displayLeadStatus($lead)
@@ -144,7 +180,214 @@ class SalesWorkspace extends Page
 
         $this->selectedLeadId = (int) $lead->getKey();
         $this->showMeetingForm = false;
+        $this->showLeadForm = false;
         $this->resetValidation();
+    }
+
+    public function openLeadForm(): void
+    {
+        Gate::authorize('create', Lead::class);
+
+        $this->resetLeadFormFields();
+
+        $employeeId = Employee::query()
+            ->where('user_id', auth()->id())
+            ->where('is_active', true)
+            ->value('id');
+
+        $this->leadAssignedEmployeeId = $employeeId
+            ? (int) $employeeId
+            : null;
+
+        $this->showMeetingForm = false;
+        $this->showLeadForm = true;
+        $this->resetValidation();
+    }
+
+    public function closeLeadForm(): void
+    {
+        $this->showLeadForm = false;
+        $this->resetLeadFormFields();
+        $this->resetValidation();
+    }
+
+    public function createLead(): void
+    {
+        Gate::authorize('create', Lead::class);
+
+        $validated = $this->validate([
+            'leadCompanyName' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+            'leadContactPerson' => [
+                'required',
+                'string',
+                'max:255',
+            ],
+            'leadEmail' => [
+                'required',
+                'email',
+                'max:255',
+            ],
+            'leadPhone' => [
+                'required',
+                'string',
+                'max:50',
+            ],
+            'leadWhatsapp' => [
+                'nullable',
+                'string',
+                'max:50',
+            ],
+            'leadSource' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+            'leadPriority' => [
+                'required',
+                Rule::in([
+                    'Low',
+                    'Medium',
+                    'High',
+                    'Urgent',
+                ]),
+            ],
+            'leadIndustry' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+            'leadBusinessType' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+            'leadEstimatedValue' => [
+                'required',
+                'numeric',
+                'min:0',
+            ],
+            'leadAssignedEmployeeId' => [
+                'nullable',
+                'integer',
+                'exists:employees,id',
+            ],
+            'leadRequirementsSummary' => [
+                'nullable',
+                'string',
+                'max:5000',
+            ],
+        ]);
+
+        try {
+            $lead = app(LeadWorkflowService::class)
+                ->create([
+                    'lead_status' => 'New',
+                    'priority' =>
+                        $validated['leadPriority'],
+                    'company_name' => filled(
+                        $validated['leadCompanyName'],
+                    )
+                        ? trim(
+                            $validated['leadCompanyName'],
+                        )
+                        : null,
+                    'contact_person' => trim(
+                        $validated['leadContactPerson'],
+                    ),
+                    'email' => trim(
+                        $validated['leadEmail'],
+                    ),
+                    'phone' => trim(
+                        $validated['leadPhone'],
+                    ),
+                    'whatsapp' => filled(
+                        $validated['leadWhatsapp'],
+                    )
+                        ? trim(
+                            $validated['leadWhatsapp'],
+                        )
+                        : null,
+                    'lead_source' => filled(
+                        $validated['leadSource'],
+                    )
+                        ? trim(
+                            $validated['leadSource'],
+                        )
+                        : null,
+                    'industry' => filled(
+                        $validated['leadIndustry'],
+                    )
+                        ? trim(
+                            $validated['leadIndustry'],
+                        )
+                        : null,
+                    'business_type' => filled(
+                        $validated['leadBusinessType'],
+                    )
+                        ? trim(
+                            $validated['leadBusinessType'],
+                        )
+                        : null,
+                    'estimated_value' => (float)
+                        $validated['leadEstimatedValue'],
+                    'assigned_employee_id' =>
+                        $validated[
+                            'leadAssignedEmployeeId'
+                        ],
+                    'requirements_summary' => filled(
+                        $validated[
+                            'leadRequirementsSummary'
+                        ],
+                    )
+                        ? trim(
+                            $validated[
+                                'leadRequirementsSummary'
+                            ],
+                        )
+                        : null,
+                    'is_active' => true,
+                ]);
+        } catch (ValidationException $exception) {
+            throw ValidationException::withMessages(
+                $this->mapLeadValidationErrors(
+                    $exception->errors(),
+                ),
+            );
+        }
+
+        $this->search = '';
+        $this->status = 'all';
+        $this->selectedLeadId =
+            (int) $lead->getKey();
+        $this->showLeadForm = false;
+
+        $this->resetLeadFormFields();
+        $this->resetValidation();
+
+        $this->dispatch(
+            'sales-workspace-updated',
+        );
+
+        Notification::make()
+            ->success()
+            ->title(
+                sprintf(
+                    'Lead %s created successfully.',
+                    $lead->lead_code,
+                ),
+            )
+            ->body(
+                sprintf(
+                    'Customer %s is linked and the lead is selected.',
+                    $lead->convertedCustomer?->customer_code
+                        ?: 'record',
+                ),
+            )
+            ->send();
     }
 
     public function transitionLead(string $target): void
@@ -414,6 +657,57 @@ class SalesWorkspace extends Page
             'assigned_employee_id',
             $employeeId,
         );
+    }
+
+    private function resetLeadFormFields(): void
+    {
+        $this->leadCompanyName = '';
+        $this->leadContactPerson = '';
+        $this->leadEmail = '';
+        $this->leadPhone = '';
+        $this->leadWhatsapp = '';
+        $this->leadSource = '';
+        $this->leadPriority = 'Medium';
+        $this->leadIndustry = '';
+        $this->leadBusinessType = '';
+        $this->leadEstimatedValue = '0';
+        $this->leadAssignedEmployeeId = null;
+        $this->leadRequirementsSummary = '';
+    }
+
+    /**
+     * @param array<string, array<int, string>> $errors
+     * @return array<string, array<int, string>>
+     */
+    private function mapLeadValidationErrors(
+        array $errors,
+    ): array {
+        $fieldMap = [
+            'company_name' => 'leadCompanyName',
+            'contact_person' => 'leadContactPerson',
+            'email' => 'leadEmail',
+            'phone' => 'leadPhone',
+            'whatsapp' => 'leadWhatsapp',
+            'lead_source' => 'leadSource',
+            'priority' => 'leadPriority',
+            'industry' => 'leadIndustry',
+            'business_type' => 'leadBusinessType',
+            'estimated_value' =>
+                'leadEstimatedValue',
+            'assigned_employee_id' =>
+                'leadAssignedEmployeeId',
+            'requirements_summary' =>
+                'leadRequirementsSummary',
+        ];
+
+        $mapped = [];
+
+        foreach ($errors as $field => $messages) {
+            $mapped[$fieldMap[$field] ?? $field] =
+                $messages;
+        }
+
+        return $mapped;
     }
 
     private function quotationCreateUrl(
