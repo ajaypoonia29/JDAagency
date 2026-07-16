@@ -4,17 +4,22 @@ declare(strict_types=1);
 
 namespace App\Livewire;
 
+use App\Models\CreditNote;
 use App\Models\Employee;
 use App\Models\Invoice;
 use App\Models\Lead;
 use App\Models\Payment;
 use App\Models\Quotation;
+use App\Models\Refund;
 use App\Services\Communication\CommunicationService;
+use App\Services\Finance\CreditNoteService;
 use App\Services\Finance\InvoiceService;
 use App\Services\Finance\PaymentService;
+use App\Services\Finance\RefundService;
 use Filament\Notifications\Notification;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Locked;
@@ -47,6 +52,34 @@ final class SalesWorkspaceFinance extends Component
 
     public string $paymentNotes = '';
 
+    public bool $creditNoteEditorOpen = false;
+
+    public string $creditNoteAmount = '';
+
+    public string $creditNoteTax = '0.00';
+
+    public string $creditNoteIssueDate = '';
+
+    public string $creditNoteDescription = '';
+
+    public string $creditNoteReason = '';
+
+    public bool $refundEditorOpen = false;
+
+    public ?int $refundPaymentId = null;
+
+    public ?int $refundCreditNoteId = null;
+
+    public string $refundAmount = '';
+
+    public string $refundMethod = 'Original Method';
+
+    public string $refundReference = '';
+
+    public string $refundDate = '';
+
+    public string $refundReason = '';
+
     public function mount(int $leadId): void
     {
         $this->leadId = $leadId;
@@ -57,6 +90,8 @@ final class SalesWorkspaceFinance extends Component
 
         $this->resetInvoiceDraft();
         $this->resetPaymentDraft();
+        $this->resetCreditNoteDraft();
+        $this->resetRefundDraft();
     }
 
     public function render(): View
@@ -75,11 +110,91 @@ final class SalesWorkspaceFinance extends Component
                 ->with([
                     'customer',
                     'quotation',
+                    'refunds',
                 ])
                 ->latest('payment_date')
                 ->latest('id')
                 ->get()
             : collect();
+
+        $canViewCreditNotes = Gate::allows(
+            'viewAny',
+            CreditNote::class,
+        );
+
+        $canViewRefunds = Gate::allows(
+            'viewAny',
+            Refund::class,
+        );
+
+        $creditNotes =
+            $invoice && $canViewCreditNotes
+                ? $invoice->creditNotes()
+                    ->with([
+                        'customer',
+                        'refunds',
+                    ])
+                    ->latest('issue_date')
+                    ->latest('id')
+                    ->get()
+                : collect();
+
+        $refunds =
+            $invoice && $canViewRefunds
+                ? $invoice->refunds()
+                    ->with([
+                        'creditNote',
+                        'customer',
+                        'payment',
+                    ])
+                    ->latest('refund_date')
+                    ->latest('id')
+                    ->get()
+                : collect();
+
+        $canCreateCreditNote =
+            $invoice !== null
+            && $invoice->issued_at !== null
+            && $invoice->status !== 'Void'
+            && $this->remainingCreditAmount($invoice) > 0
+            && Gate::allows(
+                'createCreditNote',
+                $invoice,
+            );
+
+        $canProcessRefund =
+            $invoice !== null
+            && $invoice->issued_at !== null
+            && $invoice->status !== 'Void'
+            && $invoice->refundableAmount() > 0
+            && Gate::allows(
+                'refund',
+                $invoice,
+            );
+
+        $refundablePayments =
+            $invoice && $canProcessRefund
+                ? $this->refundablePayments($invoice)
+                : [];
+
+        $refundPaymentOptions = collect(
+            $refundablePayments,
+        )->mapWithKeys(
+            fn (
+                array $details,
+                int|string $paymentId,
+            ): array => [
+                (int) $paymentId =>
+                    $details['label'],
+            ],
+        )->all();
+
+        $refundCreditNoteOptions =
+            $invoice && $canProcessRefund
+                ? $this->refundableCreditNotes(
+                    $invoice,
+                )
+                : [];
 
         return view(
             'livewire.sales-workspace-finance',
@@ -88,6 +203,17 @@ final class SalesWorkspaceFinance extends Component
                 'quotation' => $quotation,
                 'invoice' => $invoice,
                 'payments' => $payments,
+                'creditNotes' => $creditNotes,
+                'refunds' => $refunds,
+                'adjustments' =>
+                    $this->adjustmentTimeline(
+                        $creditNotes,
+                        $refunds,
+                    ),
+                'refundPaymentOptions' =>
+                    $refundPaymentOptions,
+                'refundCreditNoteOptions' =>
+                    $refundCreditNoteOptions,
 
                 'canCreateInvoice' =>
                     $quotation !== null
@@ -151,6 +277,17 @@ final class SalesWorkspaceFinance extends Component
                         'create',
                         Payment::class,
                     ),
+
+                'canCreateCreditNote' =>
+                    $canCreateCreditNote,
+
+                'canProcessRefund' =>
+                    $canProcessRefund
+                    && $refundPaymentOptions !== [],
+
+                'canViewAdjustments' =>
+                    $canViewCreditNotes
+                    || $canViewRefunds,
             ],
         );
     }
@@ -222,6 +359,8 @@ final class SalesWorkspaceFinance extends Component
 
         $this->invoiceEditorOpen = true;
         $this->paymentEditorOpen = false;
+        $this->creditNoteEditorOpen = false;
+        $this->refundEditorOpen = false;
 
         $this->resetValidation();
     }
@@ -420,6 +559,8 @@ final class SalesWorkspaceFinance extends Component
 
         $this->paymentEditorOpen = true;
         $this->invoiceEditorOpen = false;
+        $this->creditNoteEditorOpen = false;
+        $this->refundEditorOpen = false;
 
         $this->resetValidation();
     }
@@ -532,6 +673,302 @@ final class SalesWorkspaceFinance extends Component
             sprintf(
                 'Payment %s recorded and allocated.',
                 $payment->payment_no,
+            ),
+        );
+    }
+
+    public function openCreditNoteEditor(): void
+    {
+        $invoice = $this->invoiceOrFail();
+
+        Gate::authorize(
+            'createCreditNote',
+            $invoice,
+        );
+
+        abort_unless(
+            $invoice->issued_at !== null
+            && $invoice->status !== 'Void'
+            && $this->remainingCreditAmount(
+                $invoice,
+            ) > 0,
+            422,
+        );
+
+        $this->resetCreditNoteDraft($invoice);
+
+        $this->creditNoteEditorOpen = true;
+        $this->invoiceEditorOpen = false;
+        $this->paymentEditorOpen = false;
+        $this->refundEditorOpen = false;
+
+        $this->resetValidation();
+    }
+
+    public function closeCreditNoteEditor(): void
+    {
+        $this->creditNoteEditorOpen = false;
+
+        $this->resetValidation();
+    }
+
+    public function issueCreditNote(
+        CreditNoteService $creditNotes,
+    ): void {
+        $invoice = $this->invoiceOrFail();
+
+        Gate::authorize(
+            'createCreditNote',
+            $invoice,
+        );
+
+        $remainingCredit =
+            $this->remainingCreditAmount($invoice);
+
+        abort_unless(
+            $invoice->issued_at !== null
+            && $invoice->status !== 'Void'
+            && $remainingCredit > 0,
+            422,
+        );
+
+        $validated = $this->validate([
+            'creditNoteAmount' => [
+                'required',
+                'numeric',
+                'gt:0',
+                'lte:' . number_format(
+                    $remainingCredit,
+                    2,
+                    '.',
+                    '',
+                ),
+            ],
+
+            'creditNoteTax' => [
+                'required',
+                'numeric',
+                'gte:0',
+                'lte:creditNoteAmount',
+            ],
+
+            'creditNoteIssueDate' => [
+                'required',
+                'date',
+            ],
+
+            'creditNoteDescription' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+
+            'creditNoteReason' => [
+                'required',
+                'string',
+                'max:2000',
+            ],
+        ]);
+
+        $creditNote =
+            $creditNotes->createAndIssue(
+                $invoice,
+                [
+                    'amount' =>
+                        $validated[
+                            'creditNoteAmount'
+                        ],
+
+                    'tax' =>
+                        $validated[
+                            'creditNoteTax'
+                        ],
+
+                    'issue_date' =>
+                        $validated[
+                            'creditNoteIssueDate'
+                        ],
+
+                    'description' =>
+                        $validated[
+                            'creditNoteDescription'
+                        ] ?: null,
+
+                    'reason' =>
+                        $validated[
+                            'creditNoteReason'
+                        ],
+                ],
+            );
+
+        $this->creditNoteEditorOpen = false;
+        $this->resetCreditNoteDraft();
+
+        $this->dispatch(
+            'sales-workspace-updated',
+        );
+
+        $this->notifySuccess(
+            sprintf(
+                'Credit note %s issued.',
+                $creditNote->credit_note_no,
+            ),
+        );
+    }
+
+    public function openRefundEditor(): void
+    {
+        $invoice = $this->invoiceOrFail();
+
+        Gate::authorize(
+            'refund',
+            $invoice,
+        );
+
+        $refundablePayments =
+            $this->refundablePayments($invoice);
+
+        abort_unless(
+            $invoice->issued_at !== null
+            && $invoice->status !== 'Void'
+            && $invoice->refundableAmount() > 0
+            && $refundablePayments !== [],
+            422,
+        );
+
+        $this->resetRefundDraft(
+            $invoice,
+            $refundablePayments,
+        );
+
+        $this->refundEditorOpen = true;
+        $this->invoiceEditorOpen = false;
+        $this->paymentEditorOpen = false;
+        $this->creditNoteEditorOpen = false;
+
+        $this->resetValidation();
+    }
+
+    public function closeRefundEditor(): void
+    {
+        $this->refundEditorOpen = false;
+
+        $this->resetValidation();
+    }
+
+    public function processRefund(
+        RefundService $refunds,
+    ): void {
+        $invoice = $this->invoiceOrFail();
+
+        Gate::authorize(
+            'refund',
+            $invoice,
+        );
+
+        abort_unless(
+            $invoice->issued_at !== null
+            && $invoice->status !== 'Void'
+            && $invoice->refundableAmount() > 0,
+            422,
+        );
+
+        $validated = $this->validate([
+            'refundPaymentId' => [
+                'required',
+                'integer',
+            ],
+
+            'refundCreditNoteId' => [
+                'nullable',
+                'integer',
+            ],
+
+            'refundAmount' => [
+                'required',
+                'numeric',
+                'gt:0',
+            ],
+
+            'refundMethod' => [
+                'required',
+                Rule::in([
+                    'Original Method',
+                    'Cash',
+                    'UPI',
+                    'Bank Transfer',
+                    'Cheque',
+                    'Credit Card',
+                    'Debit Card',
+                ]),
+            ],
+
+            'refundReference' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
+
+            'refundDate' => [
+                'required',
+                'date',
+            ],
+
+            'refundReason' => [
+                'required',
+                'string',
+                'max:2000',
+            ],
+        ]);
+
+        $refund = $refunds->process(
+            $invoice,
+            [
+                'payment_id' =>
+                    (int) $validated[
+                        'refundPaymentId'
+                    ],
+
+                'credit_note_id' =>
+                    filled(
+                        $validated[
+                            'refundCreditNoteId'
+                        ] ?? null,
+                    )
+                        ? (int) $validated[
+                            'refundCreditNoteId'
+                        ]
+                        : null,
+
+                'amount' =>
+                    $validated['refundAmount'],
+
+                'refund_method' =>
+                    $validated['refundMethod'],
+
+                'transaction_reference' =>
+                    $validated['refundReference']
+                    ?: null,
+
+                'refund_date' =>
+                    $validated['refundDate'],
+
+                'reason' =>
+                    $validated['refundReason'],
+            ],
+        );
+
+        $this->refundEditorOpen = false;
+        $this->resetRefundDraft();
+
+        $this->dispatch(
+            'sales-workspace-updated',
+        );
+
+        $this->notifySuccess(
+            sprintf(
+                'Refund %s processed.',
+                $refund->refund_no,
             ),
         );
     }
@@ -668,6 +1105,194 @@ final class SalesWorkspaceFinance extends Component
         );
     }
 
+    private function remainingCreditAmount(
+        Invoice $invoice,
+    ): float {
+        $issuedTotal = round(
+            (float) $invoice->creditNotes()
+                ->where('status', 'Issued')
+                ->sum('grand_total'),
+            2,
+        );
+
+        return round(
+            max(
+                (float) $invoice->grand_total
+                - $issuedTotal,
+                0,
+            ),
+            2,
+        );
+    }
+
+    /**
+     * @return array<int, array{
+     *     label: string,
+     *     available: float
+     * }>
+     */
+    private function refundablePayments(
+        Invoice $invoice,
+    ): array {
+        return $invoice->allocations()
+            ->with('payment')
+            ->whereHas('payment')
+            ->get()
+            ->mapWithKeys(function (
+                mixed $allocation,
+            ) use ($invoice): array {
+                $payment = $allocation->payment;
+
+                if (! $payment instanceof Payment) {
+                    return [];
+                }
+
+                $refunded = round(
+                    (float) $payment->refunds()
+                        ->where(
+                            'invoice_id',
+                            $invoice->getKey(),
+                        )
+                        ->where(
+                            'status',
+                            'Processed',
+                        )
+                        ->sum('amount'),
+                    2,
+                );
+
+                $available = round(
+                    max(
+                        (float) $allocation->amount
+                        - $refunded,
+                        0,
+                    ),
+                    2,
+                );
+
+                if ($available <= 0) {
+                    return [];
+                }
+
+                return [
+                    (int) $payment->getKey() => [
+                        'label' => sprintf(
+                            '%s · %s · ₹%s available',
+                            $payment->payment_no,
+                            $payment->payment_method,
+                            number_format(
+                                $available,
+                                2,
+                            ),
+                        ),
+                        'available' => $available,
+                    ],
+                ];
+            })
+            ->all();
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function refundableCreditNotes(
+        Invoice $invoice,
+    ): array {
+        return $invoice->creditNotes()
+            ->with('refunds')
+            ->where('status', 'Issued')
+            ->orderBy('credit_note_no')
+            ->get()
+            ->mapWithKeys(function (
+                CreditNote $creditNote,
+            ): array {
+                $refunded = round(
+                    (float) $creditNote->refunds()
+                        ->where(
+                            'status',
+                            'Processed',
+                        )
+                        ->sum('amount'),
+                    2,
+                );
+
+                $available = round(
+                    max(
+                        (float) $creditNote->grand_total
+                        - $refunded,
+                        0,
+                    ),
+                    2,
+                );
+
+                if ($available <= 0) {
+                    return [];
+                }
+
+                return [
+                    (int) $creditNote->getKey() =>
+                        sprintf(
+                            '%s · ₹%s available',
+                            $creditNote->credit_note_no,
+                            number_format(
+                                $available,
+                                2,
+                            ),
+                        ),
+                ];
+            })
+            ->all();
+    }
+
+    /**
+     * @param Collection<int, CreditNote> $creditNotes
+     * @param Collection<int, Refund> $refunds
+     * @return Collection<int, array{
+     *     kind: string,
+     *     occurredAt: mixed,
+     *     record: CreditNote|Refund
+     * }>
+     */
+    private function adjustmentTimeline(
+        Collection $creditNotes,
+        Collection $refunds,
+    ): Collection {
+        return $creditNotes
+            ->map(
+                fn (
+                    CreditNote $creditNote,
+                ): array => [
+                    'kind' => 'credit-note',
+                    'occurredAt' =>
+                        $creditNote->issued_at
+                        ?? $creditNote->issue_date
+                        ?? $creditNote->created_at,
+                    'record' => $creditNote,
+                ],
+            )
+            ->concat(
+                $refunds->map(
+                    fn (
+                        Refund $refund,
+                    ): array => [
+                        'kind' => 'refund',
+                        'occurredAt' =>
+                            $refund->processed_at
+                            ?? $refund->refund_date
+                            ?? $refund->created_at,
+                        'record' => $refund,
+                    ],
+                ),
+            )
+            ->sortByDesc(
+                fn (array $adjustment): int =>
+                    $adjustment['occurredAt']
+                        ?->getTimestamp()
+                    ?? 0,
+            )
+            ->values();
+    }
+
     private function resetInvoiceDraft(): void
     {
         $this->invoiceDate =
@@ -692,6 +1317,81 @@ final class SalesWorkspaceFinance extends Component
             now()->format('Y-m-d');
 
         $this->paymentNotes = '';
+    }
+
+    private function resetCreditNoteDraft(
+        ?Invoice $invoice = null,
+    ): void {
+        $this->creditNoteAmount =
+            $invoice
+                ? number_format(
+                    $this->remainingCreditAmount(
+                        $invoice,
+                    ),
+                    2,
+                    '.',
+                    '',
+                )
+                : '';
+
+        $this->creditNoteTax = '0.00';
+
+        $this->creditNoteIssueDate =
+            now()->format('Y-m-d');
+
+        $this->creditNoteDescription = '';
+        $this->creditNoteReason = '';
+    }
+
+    /**
+     * @param array<int, array{
+     *     label: string,
+     *     available: float
+     * }> $refundablePayments
+     */
+    private function resetRefundDraft(
+        ?Invoice $invoice = null,
+        array $refundablePayments = [],
+    ): void {
+        $firstPaymentId =
+            array_key_first($refundablePayments);
+
+        $this->refundPaymentId =
+            $firstPaymentId !== null
+                ? (int) $firstPaymentId
+                : null;
+
+        $this->refundCreditNoteId = null;
+
+        $available =
+            $firstPaymentId !== null
+                ? (float) $refundablePayments[
+                    $firstPaymentId
+                ]['available']
+                : 0;
+
+        $this->refundAmount =
+            $invoice && $available > 0
+                ? number_format(
+                    min(
+                        $available,
+                        $invoice->refundableAmount(),
+                    ),
+                    2,
+                    '.',
+                    '',
+                )
+                : '';
+
+        $this->refundMethod =
+            'Original Method';
+
+        $this->refundReference = '';
+
+        $this->refundDate =
+            now()->format('Y-m-d');
+
+        $this->refundReason = '';
     }
 
     private function notifySuccess(

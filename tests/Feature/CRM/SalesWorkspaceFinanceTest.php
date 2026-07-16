@@ -5,17 +5,23 @@ declare(strict_types=1);
 namespace Tests\Feature\CRM;
 
 use App\Livewire\SalesWorkspaceFinance;
+use App\Models\CreditNote;
 use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\Lead;
 use App\Models\Payment;
 use App\Models\Quotation;
 use App\Models\QuotationItem;
+use App\Models\Refund;
 use App\Models\User;
 use App\Services\CRM\SalesJourneyService;
+use App\Services\Documents\CreditNoteDocumentService;
 use App\Services\Documents\DocumentService;
 use App\Services\Documents\InvoiceDocumentService;
+use App\Services\Documents\RefundDocumentService;
+use App\Services\Finance\CreditNoteService;
 use App\Services\Finance\InvoiceService;
+use App\Services\Finance\PaymentService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
@@ -349,6 +355,351 @@ final class SalesWorkspaceFinanceTest extends TestCase
         );
     }
 
+    public function test_workspace_issues_credit_note_and_displays_adjustment(): void
+    {
+        $user = $this->authorizedUser();
+
+        [$lead, $quotation] = $this->salesContext(
+            'CREDIT-ADJUSTMENT',
+            1000,
+        );
+
+        $this->actingAs($user);
+        $this->mockAdjustmentDocumentGeneration();
+
+        $invoice = app(InvoiceService::class)
+            ->createFromQuotation($quotation);
+
+        $invoice = app(InvoiceService::class)
+            ->issue($invoice);
+
+        $component = Livewire::actingAs($user)
+            ->test(
+                SalesWorkspaceFinance::class,
+                [
+                    'leadId' => $lead->getKey(),
+                ],
+            )
+            ->assertStatus(200)
+            ->assertSee('Issue Credit Note')
+            ->call('openCreditNoteEditor')
+            ->assertSet('creditNoteEditorOpen', true)
+            ->assertSet('creditNoteAmount', '1000.00')
+            ->set('creditNoteAmount', '200.00')
+            ->set('creditNoteTax', '20.00')
+            ->set('creditNoteIssueDate', '2026-07-16')
+            ->set(
+                'creditNoteDescription',
+                'Reduced implementation scope',
+            )
+            ->set(
+                'creditNoteReason',
+                'Customer removed one deliverable.',
+            )
+            ->call('issueCreditNote')
+            ->assertHasNoErrors()
+            ->assertSet('creditNoteEditorOpen', false);
+
+        $creditNote = CreditNote::query()
+            ->firstOrFail();
+
+        $this->assertSame(
+            $invoice->getKey(),
+            $creditNote->invoice_id,
+        );
+
+        $this->assertSame(
+            'Issued',
+            $creditNote->status,
+        );
+
+        $this->assertEqualsWithDelta(
+            200,
+            (float) $creditNote->grand_total,
+            0.001,
+        );
+
+        $this->assertEqualsWithDelta(
+            20,
+            (float) $creditNote->tax,
+            0.001,
+        );
+
+        $this->assertSame(
+            'Customer removed one deliverable.',
+            $creditNote->reason,
+        );
+
+        $invoice->refresh();
+        $quotation->refresh();
+
+        $this->assertEqualsWithDelta(
+            200,
+            (float) $invoice->credited_total,
+            0.001,
+        );
+
+        $this->assertEqualsWithDelta(
+            800,
+            (float) $invoice->net_total,
+            0.001,
+        );
+
+        $this->assertEqualsWithDelta(
+            800,
+            (float) $invoice->balance_due,
+            0.001,
+        );
+
+        $this->assertEqualsWithDelta(
+            800,
+            (float) $quotation->balance_due,
+            0.001,
+        );
+
+        Storage::disk('local')->assertExists(
+            $creditNote->credit_note_pdf,
+        );
+
+        $component
+            ->assertSee('Financial adjustments')
+            ->assertSee($creditNote->credit_note_no)
+            ->assertSee('Customer removed one deliverable.')
+            ->assertSee('Download Credit Note');
+    }
+
+    public function test_workspace_processes_credit_linked_refund_and_displays_timeline(): void
+    {
+        $user = $this->authorizedUser();
+
+        [$lead, $quotation] = $this->salesContext(
+            'REFUND-ADJUSTMENT',
+            1000,
+        );
+
+        $this->actingAs($user);
+        $this->mockAdjustmentDocumentGeneration();
+
+        $invoice = app(InvoiceService::class)
+            ->createFromQuotation($quotation);
+
+        $invoice = app(InvoiceService::class)
+            ->issue($invoice);
+
+        $this->mockReceiptGeneration();
+
+        $payment = app(PaymentService::class)
+            ->create([
+                'quotation_id' =>
+                    $quotation->getKey(),
+                'amount' => 1000,
+                'payment_method' =>
+                    'Bank Transfer',
+                'transaction_reference' =>
+                    'UTR-REFUND-ADJUSTMENT',
+                'payment_date' =>
+                    '2026-07-16',
+            ]);
+
+        $creditNote = app(CreditNoteService::class)
+            ->createAndIssue(
+                $invoice,
+                [
+                    'amount' => 200,
+                    'issue_date' => '2026-07-16',
+                    'description' =>
+                        'Post-payment scope credit',
+                    'reason' =>
+                        'Return the removed scope value.',
+                ],
+            );
+
+        $component = Livewire::actingAs($user)
+            ->test(
+                SalesWorkspaceFinance::class,
+                [
+                    'leadId' => $lead->getKey(),
+                ],
+            )
+            ->assertStatus(200)
+            ->assertSee('Process Refund')
+            ->call('openRefundEditor')
+            ->assertSet('refundEditorOpen', true)
+            ->assertSet(
+                'refundPaymentId',
+                $payment->getKey(),
+            )
+            ->assertSet('refundAmount', '1000.00')
+            ->set(
+                'refundCreditNoteId',
+                $creditNote->getKey(),
+            )
+            ->set('refundAmount', '200.00')
+            ->set(
+                'refundMethod',
+                'Bank Transfer',
+            )
+            ->set(
+                'refundReference',
+                'RF-UTR-0001',
+            )
+            ->set('refundDate', '2026-07-16')
+            ->set(
+                'refundReason',
+                'Refund the credited scope value.',
+            )
+            ->call('processRefund')
+            ->assertHasNoErrors()
+            ->assertSet('refundEditorOpen', false);
+
+        $refund = Refund::query()->firstOrFail();
+
+        $this->assertSame(
+            $invoice->getKey(),
+            $refund->invoice_id,
+        );
+
+        $this->assertSame(
+            $payment->getKey(),
+            $refund->payment_id,
+        );
+
+        $this->assertSame(
+            $creditNote->getKey(),
+            $refund->credit_note_id,
+        );
+
+        $this->assertSame(
+            'Processed',
+            $refund->status,
+        );
+
+        $this->assertEqualsWithDelta(
+            200,
+            (float) $refund->amount,
+            0.001,
+        );
+
+        $this->assertSame(
+            'RF-UTR-0001',
+            $refund->transaction_reference,
+        );
+
+        $invoice->refresh();
+
+        $this->assertSame(
+            'Paid',
+            $invoice->status,
+        );
+
+        $this->assertEqualsWithDelta(
+            800,
+            (float) $invoice->net_total,
+            0.001,
+        );
+
+        $this->assertEqualsWithDelta(
+            800,
+            (float) $invoice->total_paid,
+            0.001,
+        );
+
+        $this->assertEqualsWithDelta(
+            200,
+            (float) $invoice->refunded_total,
+            0.001,
+        );
+
+        $this->assertEqualsWithDelta(
+            0,
+            (float) $invoice->balance_due,
+            0.001,
+        );
+
+        Storage::disk('local')->assertExists(
+            $refund->refund_pdf,
+        );
+
+        $component
+            ->assertSee('Financial adjustments')
+            ->assertSee($creditNote->credit_note_no)
+            ->assertSee($refund->refund_no)
+            ->assertSee($payment->payment_no)
+            ->assertSee('Refund the credited scope value.')
+            ->assertSee('Download Refund');
+    }
+
+    public function test_workspace_hides_and_blocks_adjustment_actions_without_permissions(): void
+    {
+        $authorized = $this->authorizedUser();
+
+        [$lead, $quotation] = $this->salesContext(
+            'ADJUSTMENT-PERMISSIONS',
+            500,
+        );
+
+        $this->actingAs($authorized);
+        $this->mockAdjustmentDocumentGeneration();
+
+        $invoice = app(InvoiceService::class)
+            ->createFromQuotation($quotation);
+
+        app(InvoiceService::class)->issue($invoice);
+
+        $this->mockReceiptGeneration();
+
+        app(PaymentService::class)->create([
+            'quotation_id' => $quotation->getKey(),
+            'amount' => 500,
+            'payment_method' => 'UPI',
+            'payment_date' => '2026-07-16',
+        ]);
+
+        $viewer = $this->adjustmentViewer();
+
+        Livewire::actingAs($viewer)
+            ->test(
+                SalesWorkspaceFinance::class,
+                [
+                    'leadId' => $lead->getKey(),
+                ],
+            )
+            ->assertStatus(200)
+            ->assertSee('Financial adjustments')
+            ->assertDontSee('Issue Credit Note')
+            ->assertDontSee('Process Refund');
+
+        Livewire::actingAs($viewer)
+            ->test(
+                SalesWorkspaceFinance::class,
+                [
+                    'leadId' => $lead->getKey(),
+                ],
+            )
+            ->call('openCreditNoteEditor')
+            ->assertForbidden();
+
+        Livewire::actingAs($viewer)
+            ->test(
+                SalesWorkspaceFinance::class,
+                [
+                    'leadId' => $lead->getKey(),
+                ],
+            )
+            ->call('openRefundEditor')
+            ->assertForbidden();
+
+        $this->assertDatabaseCount(
+            'credit_notes',
+            0,
+        );
+
+        $this->assertDatabaseCount(
+            'refunds',
+            0,
+        );
+    }
+
     public function test_commercial_summary_uses_invoice_ledger_values(): void
     {
         [$lead, $quotation] = $this->salesContext(
@@ -439,8 +790,41 @@ final class SalesWorkspaceFinanceTest extends TestCase
             'invoices.download',
             'payments.view',
             'payments.create',
+            'payments.verify',
             'receipts.create',
             'receipts.download',
+        ];
+
+        foreach ($permissions as $permission) {
+            Permission::findOrCreate(
+                $permission,
+                'web',
+            );
+        }
+
+        $role = Role::findOrCreate(
+            'Admin',
+            'web',
+        );
+
+        $user = User::factory()->create();
+
+        $user->assignRole($role);
+        $user->givePermissionTo($permissions);
+
+        app(PermissionRegistrar::class)
+            ->forgetCachedPermissions();
+
+        return $user->refresh();
+    }
+
+    private function adjustmentViewer(): User
+    {
+        $permissions = [
+            'leads.view',
+            'quotations.view',
+            'invoices.view',
+            'payments.view',
         ];
 
         foreach ($permissions as $permission) {
@@ -537,6 +921,83 @@ final class SalesWorkspaceFinanceTest extends TestCase
             $lead->refresh(),
             $quotation->refresh(),
         ];
+    }
+
+    private function mockAdjustmentDocumentGeneration(): void
+    {
+        $this->mock(
+            InvoiceDocumentService::class,
+            function (MockInterface $mock): void {
+                $mock->shouldReceive('generate')
+                    ->zeroOrMoreTimes()
+                    ->andReturnUsing(
+                        function (Invoice $invoice): string {
+                            $path =
+                                'invoices/'
+                                . $invoice->invoice_no
+                                . '.pdf';
+
+                            Storage::disk('local')->put(
+                                $path,
+                                'invoice '
+                                . $invoice->status,
+                            );
+
+                            return $path;
+                        },
+                    );
+            },
+        );
+
+        $this->mock(
+            CreditNoteDocumentService::class,
+            function (MockInterface $mock): void {
+                $mock->shouldReceive('generate')
+                    ->zeroOrMoreTimes()
+                    ->andReturnUsing(
+                        function (
+                            CreditNote $creditNote,
+                        ): string {
+                            $path =
+                                'credit-notes/'
+                                . $creditNote->credit_note_no
+                                . '.pdf';
+
+                            Storage::disk('local')->put(
+                                $path,
+                                'credit note '
+                                . $creditNote->status,
+                            );
+
+                            return $path;
+                        },
+                    );
+            },
+        );
+
+        $this->mock(
+            RefundDocumentService::class,
+            function (MockInterface $mock): void {
+                $mock->shouldReceive('generate')
+                    ->zeroOrMoreTimes()
+                    ->andReturnUsing(
+                        function (Refund $refund): string {
+                            $path =
+                                'refunds/'
+                                . $refund->refund_no
+                                . '.pdf';
+
+                            Storage::disk('local')->put(
+                                $path,
+                                'refund '
+                                . $refund->status,
+                            );
+
+                            return $path;
+                        },
+                    );
+            },
+        );
     }
 
     private function mockInvoiceDocumentGeneration(): void
