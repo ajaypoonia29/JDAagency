@@ -852,6 +852,11 @@
                         :lead-id="$selectedLead->getKey()"
                         :key="'sales-workspace-quotation-'.$selectedLead->getKey()"
                     />
+
+                    <livewire:sales-workspace-finance
+                        :lead-id="$selectedLead->getKey()"
+                        :key="'sales-workspace-finance-'.$selectedLead->getKey()"
+                    />
                     @if ($showMeetingForm)
                         <section class="asw-card asw-section">
                             <div class="asw-section__head">
@@ -997,11 +1002,11 @@
                                     <dd class="asw-money">₹{{ number_format($summary['quotation_total'], 2) }}</dd>
                                 </div>
                                 <div class="asw-finance__row">
-                                    <dt class="asw-muted">Payments received</dt>
+                                    <dt class="asw-muted">Net payments</dt>
                                     <dd class="asw-money">₹{{ number_format($summary['paid_total'], 2) }}</dd>
                                 </div>
                                 <div class="asw-finance__row is-total">
-                                    <dt>Balance</dt>
+                                    <dt>Finance balance</dt>
                                     <dd>₹{{ number_format($summary['balance_total'], 2) }}</dd>
                                 </div>
                             </dl>

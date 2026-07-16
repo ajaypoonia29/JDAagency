@@ -34,20 +34,35 @@ final class SalesJourneyService
         $quotationStarted = $quotation !== null;
         $quotationCompleted = in_array(
             $quotation?->status,
-            ['Approved', 'Sent', 'Completed'],
+            ['Approved', 'Sent', 'Accepted', 'Completed'],
             true,
         );
         $invoiceStarted = $invoice !== null;
         $invoiceCompleted = in_array(
             $invoice?->status,
-            ['Issued', 'Partially Paid', 'Paid', 'Overdue'],
+            [
+                'Issued',
+                'Partially Paid',
+                'Paid',
+                'Overdue',
+                'Credited',
+                'Refunded',
+            ],
             true,
         );
         $paymentStarted = $paid > 0;
         $paymentCompleted = $invoice
-            ? $invoice->status === 'Paid'
+            ? (
+                $invoice->issued_at !== null
+                && $invoice->status !== 'Void'
+                && (float) $invoice->balance_due <= 0
+            )
             : $quotation?->payment_status === 'Paid';
-        $completed = $lead->lead_status === 'Won';
+        $completed = $lead->lead_status === 'Won'
+            && (
+                $invoice === null
+                || $paymentCompleted
+            );
 
         return [
             $this->stage(
@@ -140,14 +155,6 @@ final class SalesJourneyService
             );
         }
 
-        if ($lead->lead_status === 'Won') {
-            return $this->action(
-                'completed',
-                'Sales journey completed',
-                'The lead, quotation, invoice, and payment lifecycle is complete.',
-                'success',
-            );
-        }
 
         $meeting = $this->latestMeeting($lead);
         $quotation = $this->latestQuotation($lead);
@@ -163,8 +170,19 @@ final class SalesJourneyService
                 return $this->action(
                     'issue-invoice',
                     'Issue invoice',
-                    'Issue the draft invoice before collecting payment.',
+                    (float) $invoice->total_paid > 0
+                        ? 'Issue the draft invoice and reconcile its allocated payments.'
+                        : 'Issue the draft invoice before collecting payment.',
                     'warning',
+                );
+            }
+
+            if ($invoice->status === 'Void') {
+                return $this->action(
+                    'review-void-invoice',
+                    'Review void invoice',
+                    'The quotation has a void invoice and requires finance review.',
+                    'danger',
                 );
             }
 
@@ -183,10 +201,28 @@ final class SalesJourneyService
                 );
             }
 
+            if ($lead->lead_status === 'Won') {
+                return $this->action(
+                    'completed',
+                    'Sales journey completed',
+                    'The lead, quotation, invoice, and payment lifecycle is complete.',
+                    'success',
+                );
+            }
+
             return $this->action(
                 'synchronize',
                 'Synchronize completion',
                 'The financial balance is settled; refresh the final CRM state.',
+                'success',
+            );
+        }
+
+        if ($lead->lead_status === 'Won') {
+            return $this->action(
+                'completed',
+                'Sales journey completed',
+                'The lead is terminal and has no unresolved invoice lifecycle.',
                 'success',
             );
         }
@@ -285,6 +321,9 @@ final class SalesJourneyService
     /**
      * @return array{
      *     quotation_total: float,
+     *     invoiced_total: float,
+     *     credited_total: float,
+     *     refunded_total: float,
      *     paid_total: float,
      *     balance_total: float,
      *     meetings: int,
@@ -295,19 +334,78 @@ final class SalesJourneyService
      */
     public function summary(Lead $lead): array
     {
-        $quotationTotal = (float) $lead->quotations->sum(
-            fn (Quotation $quotation): float =>
-                (float) $quotation->grand_total,
+        $quotationTotal = round(
+            (float) $lead->quotations->sum(
+                fn (Quotation $quotation): float =>
+                    (float) $quotation->grand_total,
+            ),
+            2,
         );
-        $paidTotal = $this->paidAmount($lead);
 
-        return [
-            'quotation_total' => round($quotationTotal, 2),
-            'paid_total' => round($paidTotal, 2),
-            'balance_total' => round(
+        $activeInvoices = $lead->invoices
+            ->reject(
+                fn (Invoice $invoice): bool =>
+                    $invoice->status === 'Void',
+            );
+
+        if ($activeInvoices->isNotEmpty()) {
+            $invoicedTotal = round(
+                (float) $activeInvoices->sum(
+                    fn (Invoice $invoice): float =>
+                        (float) $invoice->net_total,
+                ),
+                2,
+            );
+
+            $creditedTotal = round(
+                (float) $activeInvoices->sum(
+                    fn (Invoice $invoice): float =>
+                        (float) $invoice->credited_total,
+                ),
+                2,
+            );
+
+            $refundedTotal = round(
+                (float) $activeInvoices->sum(
+                    fn (Invoice $invoice): float =>
+                        (float) $invoice->refunded_total,
+                ),
+                2,
+            );
+
+            $paidTotal = round(
+                (float) $activeInvoices->sum(
+                    fn (Invoice $invoice): float =>
+                        (float) $invoice->total_paid,
+                ),
+                2,
+            );
+
+            $balanceTotal = round(
+                (float) $activeInvoices->sum(
+                    fn (Invoice $invoice): float =>
+                        max((float) $invoice->balance_due, 0),
+                ),
+                2,
+            );
+        } else {
+            $invoicedTotal = 0.0;
+            $creditedTotal = 0.0;
+            $refundedTotal = 0.0;
+            $paidTotal = $this->paidAmount($lead);
+            $balanceTotal = round(
                 max($quotationTotal - $paidTotal, 0),
                 2,
-            ),
+            );
+        }
+
+        return [
+            'quotation_total' => $quotationTotal,
+            'invoiced_total' => $invoicedTotal,
+            'credited_total' => $creditedTotal,
+            'refunded_total' => $refundedTotal,
+            'paid_total' => round($paidTotal, 2),
+            'balance_total' => $balanceTotal,
             'meetings' => $lead->meetings->count(),
             'quotations' => $lead->quotations->count(),
             'invoices' => $lead->invoices->count(),
