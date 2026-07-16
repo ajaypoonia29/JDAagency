@@ -138,6 +138,7 @@
             border-top: 1px solid var(--asw-border);
             margin-top: 1rem;
             padding-top: 1rem;
+            scroll-margin-top: 5rem;
         }
 
         .aswf-form-grid {
@@ -961,8 +962,10 @@
 
     @if ($creditNoteEditorOpen)
         <form
+            id="aswf-credit-note-editor"
             wire:submit="issueCreditNote"
             class="aswf-form"
+            x-init="$nextTick(() => $el.scrollIntoView({ behavior: 'smooth', block: 'start' }))"
         >
             <div class="asw-heading">
                 Issue credit note
@@ -1100,8 +1103,10 @@
 
     @if ($refundEditorOpen)
         <form
+            id="aswf-refund-editor"
             wire:submit="processRefund"
             class="aswf-form"
+            x-init="$nextTick(() => $el.scrollIntoView({ behavior: 'smooth', block: 'start' }))"
         >
             <div class="asw-heading">
                 Process refund

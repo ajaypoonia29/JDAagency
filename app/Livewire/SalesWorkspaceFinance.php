@@ -23,6 +23,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Locked;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 final class SalesWorkspaceFinance extends Component
@@ -92,6 +93,11 @@ final class SalesWorkspaceFinance extends Component
         $this->resetPaymentDraft();
         $this->resetCreditNoteDraft();
         $this->resetRefundDraft();
+    }
+
+    #[On('sales-workspace-updated')]
+    public function refreshWorkspace(): void
+    {
     }
 
     public function render(): View

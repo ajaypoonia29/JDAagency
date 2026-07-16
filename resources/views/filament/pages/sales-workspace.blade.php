@@ -233,6 +233,11 @@
             color: #92400e;
         }
 
+        .asw-badge--completed {
+            background: #dcfce7;
+            color: #15803d;
+        }
+
         .asw-badge--proposal,
         .asw-badge--negotiation {
             background: #ffedd5;
@@ -648,6 +653,7 @@
             'Contacted' => 'asw-badge--contacted',
             'Qualified' => 'asw-badge--qualified',
             'Meeting Scheduled' => 'asw-badge--meeting',
+            'Meeting Completed' => 'asw-badge--completed',
             'Proposal Sent' => 'asw-badge--proposal',
             'Negotiation' => 'asw-badge--negotiation',
             'Won' => 'asw-badge--won',
@@ -714,8 +720,16 @@
                                     </div>
                                 </div>
 
-                                <span class="asw-badge {{ $statusClasses[$lead->lead_status] ?? 'asw-badge--new' }}">
-                                    {{ $lead->lead_status }}
+                                @php
+                                    $displayLeadStatus =
+                                        $leadDisplayStatuses[
+                                            $lead->getKey()
+                                        ]
+                                        ?? $lead->lead_status;
+                                @endphp
+
+                                <span class="asw-badge {{ $statusClasses[$displayLeadStatus] ?? 'asw-badge--new' }}">
+                                    {{ $displayLeadStatus }}
                                 </span>
                             </div>
 
@@ -748,8 +762,8 @@
                                 </h1>
 
                                 <div class="asw-hero__badges">
-                                    <span class="asw-badge {{ $statusClasses[$selectedLead->lead_status] ?? 'asw-badge--new' }}">
-                                        {{ $selectedLead->lead_status }}
+                                    <span class="asw-badge {{ $statusClasses[$selectedLeadDisplayStatus] ?? 'asw-badge--new' }}">
+                                        {{ $selectedLeadDisplayStatus }}
                                     </span>
                                     <span class="asw-badge asw-badge--new">
                                         {{ $selectedLead->priority }} priority
@@ -962,7 +976,9 @@
                                                 @foreach (['Interested', 'Follow-up Required', 'Quotation Required', 'Not Interested'] as $outcome)
                                                     <button
                                                         type="button"
-                                                        wire:click="completeMeeting({{ $meeting->getKey() }}, @js($outcome))"
+                                                        wire:click='completeMeeting({{ $meeting->getKey() }}, @js($outcome))'
+                                                        wire:loading.attr="disabled"
+                                                        wire:target="completeMeeting"
                                                         wire:confirm="Complete this meeting as {{ $outcome }}?"
                                                         class="asw-control"
                                                         style="min-height: auto; width: auto; padding: 0.45rem 0.6rem; cursor: pointer;"

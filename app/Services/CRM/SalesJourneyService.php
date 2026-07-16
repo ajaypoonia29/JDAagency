@@ -136,6 +136,18 @@ final class SalesJourneyService
         ];
     }
 
+    public function displayLeadStatus(Lead $lead): string
+    {
+        if (
+            $lead->lead_status === 'Meeting Scheduled'
+            && $this->latestMeeting($lead)?->status === 'Completed'
+        ) {
+            return 'Meeting Completed';
+        }
+
+        return (string) ($lead->lead_status ?: 'New');
+    }
+
     /**
      * @return array{
      *     key: string,

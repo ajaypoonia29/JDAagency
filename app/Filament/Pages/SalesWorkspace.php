@@ -91,10 +91,25 @@ class SalesWorkspace extends Page
 
         $journey = app(SalesJourneyService::class);
 
+        $leadDisplayStatuses = $leads
+            ->mapWithKeys(
+                fn (Lead $pipelineLead): array => [
+                    (int) $pipelineLead->getKey() =>
+                        $journey->displayLeadStatus(
+                            $pipelineLead,
+                        ),
+                ],
+            )
+            ->all();
+
         return [
             'leads' => $leads,
             'selectedLead' => $lead,
             'statusOptions' => self::STATUS_OPTIONS,
+            'leadDisplayStatuses' => $leadDisplayStatuses,
+            'selectedLeadDisplayStatus' => $lead
+                ? $journey->displayLeadStatus($lead)
+                : null,
             'pipelineCounts' => $this->pipelineCounts(),
             'stages' => $lead ? $journey->stages($lead) : [],
             'nextAction' => $lead

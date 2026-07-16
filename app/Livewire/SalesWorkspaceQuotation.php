@@ -17,6 +17,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Locked;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 final class SalesWorkspaceQuotation extends Component
@@ -78,6 +79,11 @@ final class SalesWorkspaceQuotation extends Component
         } else {
             $this->resetDraft();
         }
+    }
+
+    #[On('sales-workspace-updated')]
+    public function refreshWorkspace(): void
+    {
     }
 
     public function render(): View
