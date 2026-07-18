@@ -12,6 +12,7 @@ use App\Services\CRM\LeadStatusService;
 use App\Services\CRM\LeadWorkflowService;
 use App\Services\CRM\MeetingWorkflowService;
 use App\Services\CRM\SalesJourneyService;
+use App\Support\CRM\LeadOptionCatalog;
 use BackedEnum;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -25,6 +26,16 @@ use UnitEnum;
 
 class SalesWorkspace extends Page
 {
+    private const ASSIGNMENT_MANAGER_ROLES = [
+        'Admin',
+        'Developer',
+        'Sales Manager',
+        'Manager',
+        'General Manager',
+        'Director',
+        'Chief Executive Officer',
+    ];
+
     private const STATUS_OPTIONS = [
         'all' => 'All active leads',
         'New' => 'New',
@@ -62,6 +73,8 @@ class SalesWorkspace extends Page
 
     public string $leadContactPerson = '';
 
+    public string $leadDesignation = '';
+
     public string $leadEmail = '';
 
     public string $leadPhone = '';
@@ -75,6 +88,8 @@ class SalesWorkspace extends Page
     public string $leadIndustry = '';
 
     public string $leadBusinessType = '';
+
+    public string $leadCompanySize = '';
 
     public string $leadEstimatedValue = '0';
 
@@ -119,6 +134,12 @@ class SalesWorkspace extends Page
 
         $journey = app(SalesJourneyService::class);
 
+        $canManageLeadAssignments =
+            $this->canManageLeadAssignments();
+
+        $leadAssignmentEmployee =
+            $this->currentActiveEmployee();
+
         $leadDisplayStatuses = $leads
             ->mapWithKeys(
                 fn (Lead $pipelineLead): array => [
@@ -138,10 +159,28 @@ class SalesWorkspace extends Page
                 'create',
                 Lead::class,
             ),
-            'leadEmployees' => Employee::query()
-                ->where('is_active', true)
-                ->orderBy('full_name')
-                ->get(['id', 'full_name']),
+            'canManageLeadAssignments' =>
+                $canManageLeadAssignments,
+            'leadAssignmentEmployee' =>
+                $leadAssignmentEmployee,
+            'leadEmployees' => $canManageLeadAssignments
+                ? Employee::query()
+                    ->where('is_active', true)
+                    ->orderBy('full_name')
+                    ->get(['id', 'full_name'])
+                : collect(),
+            'leadDesignationOptions' =>
+                LeadOptionCatalog::designations(),
+            'leadIndustryOptions' =>
+                LeadOptionCatalog::industries(),
+            'leadBusinessTypeOptions' =>
+                LeadOptionCatalog::businessTypes(),
+            'leadCompanySizeOptions' =>
+                LeadOptionCatalog::companySizes(),
+            'leadSourceOptions' =>
+                LeadOptionCatalog::leadSources(),
+            'leadEstimatedValueOptions' =>
+                LeadOptionCatalog::estimatedValues(),
             'leadDisplayStatuses' => $leadDisplayStatuses,
             'selectedLeadDisplayStatus' => $lead
                 ? $journey->displayLeadStatus($lead)
@@ -190,18 +229,25 @@ class SalesWorkspace extends Page
 
         $this->resetLeadFormFields();
 
-        $employeeId = Employee::query()
-            ->where('user_id', auth()->id())
-            ->where('is_active', true)
-            ->value('id');
+        $employee = $this->currentActiveEmployee();
 
-        $this->leadAssignedEmployeeId = $employeeId
-            ? (int) $employeeId
+        $this->leadAssignedEmployeeId = $employee
+            ? (int) $employee->getKey()
             : null;
 
         $this->showMeetingForm = false;
         $this->showLeadForm = true;
         $this->resetValidation();
+
+        if (
+            ! $this->canManageLeadAssignments()
+            && ! $employee
+        ) {
+            $this->addError(
+                'leadAssignedEmployeeId',
+                'Your account must be linked to an active employee before creating leads.',
+            );
+        }
     }
 
     public function closeLeadForm(): void
@@ -215,6 +261,44 @@ class SalesWorkspace extends Page
     {
         Gate::authorize('create', Lead::class);
 
+        $canManageLeadAssignments =
+            $this->canManageLeadAssignments();
+
+        $currentEmployee =
+            $this->currentActiveEmployee();
+
+        if (
+            ! $canManageLeadAssignments
+            && ! $currentEmployee
+        ) {
+            throw ValidationException::withMessages([
+                'leadAssignedEmployeeId' => [
+                    'Your account must be linked to an active employee before creating leads.',
+                ],
+            ]);
+        }
+
+        $assignmentRules = $canManageLeadAssignments
+            ? [
+                'nullable',
+                'integer',
+                Rule::exists(
+                    'employees',
+                    'id',
+                )->where(
+                    fn ($query) => $query
+                        ->where('is_active', true)
+                        ->whereNull('deleted_at'),
+                ),
+            ]
+            : [
+                'required',
+                'integer',
+                Rule::in([
+                    (int) $currentEmployee->getKey(),
+                ]),
+            ];
+
         $validated = $this->validate([
             'leadCompanyName' => [
                 'nullable',
@@ -223,6 +307,11 @@ class SalesWorkspace extends Page
             ],
             'leadContactPerson' => [
                 'required',
+                'string',
+                'max:255',
+            ],
+            'leadDesignation' => [
+                'nullable',
                 'string',
                 'max:255',
             ],
@@ -265,16 +354,18 @@ class SalesWorkspace extends Page
                 'string',
                 'max:255',
             ],
+            'leadCompanySize' => [
+                'nullable',
+                'string',
+                'max:255',
+            ],
             'leadEstimatedValue' => [
                 'required',
                 'numeric',
                 'min:0',
             ],
-            'leadAssignedEmployeeId' => [
-                'nullable',
-                'integer',
-                'exists:employees,id',
-            ],
+            'leadAssignedEmployeeId' =>
+                $assignmentRules,
             'leadRequirementsSummary' => [
                 'nullable',
                 'string',
@@ -298,6 +389,13 @@ class SalesWorkspace extends Page
                     'contact_person' => trim(
                         $validated['leadContactPerson'],
                     ),
+                    'designation' => filled(
+                        $validated['leadDesignation'],
+                    )
+                        ? trim(
+                            $validated['leadDesignation'],
+                        )
+                        : null,
                     'email' => trim(
                         $validated['leadEmail'],
                     ),
@@ -332,12 +430,22 @@ class SalesWorkspace extends Page
                             $validated['leadBusinessType'],
                         )
                         : null,
+                    'company_size' => filled(
+                        $validated['leadCompanySize'],
+                    )
+                        ? trim(
+                            $validated['leadCompanySize'],
+                        )
+                        : null,
                     'estimated_value' => (float)
                         $validated['leadEstimatedValue'],
                     'assigned_employee_id' =>
-                        $validated[
-                            'leadAssignedEmployeeId'
-                        ],
+                        $canManageLeadAssignments
+                            ? $validated[
+                                'leadAssignedEmployeeId'
+                            ]
+                            : (int)
+                                $currentEmployee->getKey(),
                     'requirements_summary' => filled(
                         $validated[
                             'leadRequirementsSummary'
@@ -624,45 +732,62 @@ class SalesWorkspace extends Page
     {
         $query = Lead::query();
 
-        $user = auth()->user();
-
-        if (! $user) {
+        if (! auth()->user()) {
             return $query->whereRaw('1 = 0');
         }
 
-        if (
-            method_exists($user, 'hasAnyRole')
-            && $user->hasAnyRole([
-                'Admin',
-                'Developer',
-                'Sales Manager',
-                'Manager',
-                'General Manager',
-                'Director',
-                'Chief Executive Officer',
-            ])
-        ) {
+        if ($this->canManageLeadAssignments()) {
             return $query;
         }
 
-        $employeeId = Employee::query()
-            ->where('user_id', $user->getKey())
-            ->value('id');
+        $employee = $this->currentActiveEmployee();
 
-        if (! $employeeId) {
+        if (! $employee) {
             return $query->whereRaw('1 = 0');
         }
 
         return $query->where(
             'assigned_employee_id',
-            $employeeId,
+            $employee->getKey(),
         );
+    }
+
+    private function canManageLeadAssignments(): bool
+    {
+        $user = auth()->user();
+
+        return (bool) (
+            $user
+            && method_exists($user, 'hasAnyRole')
+            && $user->hasAnyRole(
+                self::ASSIGNMENT_MANAGER_ROLES,
+            )
+        );
+    }
+
+    private function currentActiveEmployee(): ?Employee
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            return null;
+        }
+
+        return Employee::query()
+            ->where('user_id', $user->getKey())
+            ->where('is_active', true)
+            ->orderBy('id')
+            ->first([
+                'id',
+                'full_name',
+            ]);
     }
 
     private function resetLeadFormFields(): void
     {
         $this->leadCompanyName = '';
         $this->leadContactPerson = '';
+        $this->leadDesignation = '';
         $this->leadEmail = '';
         $this->leadPhone = '';
         $this->leadWhatsapp = '';
@@ -670,6 +795,7 @@ class SalesWorkspace extends Page
         $this->leadPriority = 'Medium';
         $this->leadIndustry = '';
         $this->leadBusinessType = '';
+        $this->leadCompanySize = '';
         $this->leadEstimatedValue = '0';
         $this->leadAssignedEmployeeId = null;
         $this->leadRequirementsSummary = '';
@@ -685,6 +811,7 @@ class SalesWorkspace extends Page
         $fieldMap = [
             'company_name' => 'leadCompanyName',
             'contact_person' => 'leadContactPerson',
+            'designation' => 'leadDesignation',
             'email' => 'leadEmail',
             'phone' => 'leadPhone',
             'whatsapp' => 'leadWhatsapp',
@@ -692,6 +819,7 @@ class SalesWorkspace extends Page
             'priority' => 'leadPriority',
             'industry' => 'leadIndustry',
             'business_type' => 'leadBusinessType',
+            'company_size' => 'leadCompanySize',
             'estimated_value' =>
                 'leadEstimatedValue',
             'assigned_employee_id' =>

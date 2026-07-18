@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Services\CRM;
 
 use App\Models\Lead;
+use App\Support\CRM\LeadAssignmentAccess;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 
 class LeadWorkflowService
 {
@@ -46,6 +48,8 @@ class LeadWorkflowService
 
     public function create(array $data): Lead
     {
+        $data = $this->enforceAssignment($data);
+
         $this->validate($data);
 
         return DB::transaction(function () use ($data): Lead {
@@ -66,6 +70,8 @@ class LeadWorkflowService
 
     public function update(Lead $lead, array $data): Lead
     {
+        $data = $this->enforceAssignment($data);
+
         $this->validate($data, updating: true);
 
         return DB::transaction(function () use ($lead, $data): Lead {
@@ -94,6 +100,37 @@ class LeadWorkflowService
 
             return $lockedLead->refresh()->load('convertedCustomer');
         }, attempts: 3);
+    }
+
+    /**
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private function enforceAssignment(array $data): array
+    {
+        $user = auth()->user();
+
+        if ($user) {
+            return LeadAssignmentAccess::enforceWriteAssignment(
+                $data,
+                $user,
+            );
+        }
+
+        if (
+            array_key_exists(
+                'assigned_employee_id',
+                $data,
+            )
+        ) {
+            throw ValidationException::withMessages([
+                'assigned_employee_id' => [
+                    'Lead assignment requires an authenticated user.',
+                ],
+            ]);
+        }
+
+        return $data;
     }
 
     private function validate(

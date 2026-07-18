@@ -6,8 +6,10 @@ namespace Tests\Feature\CRM;
 
 use App\Filament\Pages\SalesWorkspace;
 use App\Models\Customer;
+use App\Models\Employee;
 use App\Models\Lead;
 use App\Models\User;
+use App\Support\CRM\LeadOptionCatalog;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -44,17 +46,22 @@ final class SalesWorkspaceLeadIntakeTest extends TestCase
             ->assertSet('leadPriority', 'Medium')
             ->set('leadCompanyName', 'Phase 12 Studio')
             ->set('leadContactPerson', 'Ajay Poonia')
+            ->set('leadDesignation', 'Owner')
             ->set(
                 'leadEmail',
                 'phase12-intake@example.com',
             )
             ->set('leadPhone', '9000001212')
             ->set('leadWhatsapp', '9000001212')
-            ->set('leadSource', 'Sales Workspace')
+            ->set('leadSource', 'Google Search')
             ->set('leadPriority', 'High')
-            ->set('leadIndustry', 'Marketing')
+            ->set(
+                'leadIndustry',
+                'Advertising & Marketing',
+            )
             ->set('leadBusinessType', 'Agency')
-            ->set('leadEstimatedValue', '53100')
+            ->set('leadCompanySize', '1-10')
+            ->set('leadEstimatedValue', '50000')
             ->set(
                 'leadRequirementsSummary',
                 'Inline lead intake regression coverage.',
@@ -84,8 +91,33 @@ final class SalesWorkspaceLeadIntakeTest extends TestCase
             $lead->email,
         );
 
+        $this->assertSame(
+            'Owner',
+            $lead->designation,
+        );
+
+        $this->assertSame(
+            'Google Search',
+            $lead->lead_source,
+        );
+
+        $this->assertSame(
+            'Advertising & Marketing',
+            $lead->industry,
+        );
+
+        $this->assertSame(
+            'Agency',
+            $lead->business_type,
+        );
+
+        $this->assertSame(
+            '1-10',
+            $lead->company_size,
+        );
+
         $this->assertEqualsWithDelta(
-            53100,
+            50000,
             (float) $lead->estimated_value,
             0.001,
         );
@@ -97,6 +129,265 @@ final class SalesWorkspaceLeadIntakeTest extends TestCase
             )
             ->assertSee($lead->lead_code)
             ->assertSee('Contact the lead');
+    }
+
+    public function test_standard_catalog_drives_both_lead_forms(): void
+    {
+        $this->assertSame(
+            'Google Search (Organic)',
+            LeadOptionCatalog::leadSources()[
+                'Google Search'
+            ],
+        );
+
+        $this->assertSame(
+            'Chief Executive Officer (CEO)',
+            LeadOptionCatalog::designations()[
+                'Chief Executive Officer'
+            ],
+        );
+
+        $this->assertSame(
+            "1\u{2013}10 employees",
+            LeadOptionCatalog::companySizes()[
+                '1-10'
+            ],
+        );
+
+        $this->assertSame(
+            "Up to \u{20B9}30,000",
+            LeadOptionCatalog::estimatedValues()[
+                '30000'
+            ],
+        );
+
+        $this->assertArrayHasKey(
+            '53100',
+            LeadOptionCatalog::estimatedValues(
+                53100,
+            ),
+        );
+
+        $leadForm = file_get_contents(
+            app_path(
+                'Filament/Resources/Leads/Schemas/'
+                . 'LeadForm.php',
+            ),
+        );
+
+        $workspaceView = file_get_contents(
+            resource_path(
+                'views/filament/pages/'
+                . 'sales-workspace.blade.php',
+            ),
+        );
+
+        $this->assertIsString($leadForm);
+        $this->assertIsString($workspaceView);
+
+        foreach ([
+            'LeadOptionCatalog::designations',
+            'LeadOptionCatalog::industries',
+            'LeadOptionCatalog::businessTypes',
+            'LeadOptionCatalog::companySizes',
+            'LeadOptionCatalog::leadSources',
+            'LeadOptionCatalog::estimatedValues',
+        ] as $catalogCall) {
+            $this->assertStringContainsString(
+                $catalogCall,
+                $leadForm,
+            );
+        }
+
+        foreach ([
+            'leadDesignationOptions',
+            'leadIndustryOptions',
+            'leadBusinessTypeOptions',
+            'leadCompanySizeOptions',
+            'leadSourceOptions',
+            'leadEstimatedValueOptions',
+        ] as $workspaceOption) {
+            $this->assertStringContainsString(
+                $workspaceOption,
+                $workspaceView,
+            );
+        }
+    }
+
+    public function test_non_privileged_user_is_forced_to_active_employee(): void
+    {
+        $user = $this->salesUser();
+
+        $employee = $this->createEmployee(
+            $user,
+            true,
+        );
+
+        Livewire::actingAs($user)
+            ->test(SalesWorkspace::class)
+            ->call('openLeadForm')
+            ->assertSet(
+                'leadAssignedEmployeeId',
+                $employee->getKey(),
+            )
+            ->assertSee($employee->full_name)
+            ->assertSee(
+                'Assigned to your employee profile.',
+            )
+            ->set(
+                'leadCompanyName',
+                'Assigned Sales Studio',
+            )
+            ->set('leadContactPerson', 'Sales Agent')
+            ->set(
+                'leadEmail',
+                'assigned-sales@example.com',
+            )
+            ->set('leadPhone', '9000001717')
+            ->set('leadSource', 'Self Generated')
+            ->set(
+                'leadIndustry',
+                'Consulting & Professional Services',
+            )
+            ->set(
+                'leadBusinessType',
+                'Private Limited Company',
+            )
+            ->set('leadCompanySize', '11-50')
+            ->set('leadEstimatedValue', '70000')
+            ->call('createLead')
+            ->assertHasNoErrors();
+
+        $lead = Lead::query()->sole();
+
+        $this->assertSame(
+            $employee->getKey(),
+            $lead->assigned_employee_id,
+        );
+    }
+
+    public function test_non_privileged_user_cannot_tamper_assignment(): void
+    {
+        $user = $this->salesUser();
+
+        $this->createEmployee(
+            $user,
+            true,
+        );
+
+        $otherEmployee = $this->createEmployee(
+            User::factory()->create(),
+            true,
+        );
+
+        Livewire::actingAs($user)
+            ->test(SalesWorkspace::class)
+            ->call('openLeadForm')
+            ->set(
+                'leadAssignedEmployeeId',
+                $otherEmployee->getKey(),
+            )
+            ->set('leadCompanyName', 'Tampered Lead')
+            ->set('leadContactPerson', 'Sales Agent')
+            ->set(
+                'leadEmail',
+                'tampered-assignment@example.com',
+            )
+            ->set('leadPhone', '9000001818')
+            ->set('leadEstimatedValue', '50000')
+            ->call('createLead')
+            ->assertHasErrors([
+                'leadAssignedEmployeeId',
+            ]);
+
+        $this->assertSame(
+            0,
+            Lead::query()->count(),
+        );
+
+        $this->assertSame(
+            0,
+            Customer::query()->count(),
+        );
+    }
+
+    public function test_non_privileged_user_without_active_employee_cannot_create(): void
+    {
+        $user = $this->salesUser();
+
+        $this->assertFalse(
+            $user->can('create', Lead::class),
+        );
+
+        Livewire::actingAs($user)
+            ->test(SalesWorkspace::class)
+            ->call('openLeadForm')
+            ->set(
+                'leadCompanyName',
+                'No Employee Studio',
+            )
+            ->set('leadContactPerson', 'Sales Agent')
+            ->set(
+                'leadEmail',
+                'no-active-employee@example.com',
+            )
+            ->set('leadPhone', '9000001919')
+            ->set('leadEstimatedValue', '30000')
+            ->call('createLead')
+            ->assertStatus(404);
+
+        $this->assertSame(
+            0,
+            Lead::query()->count(),
+        );
+
+        $this->assertSame(
+            0,
+            Customer::query()->count(),
+        );
+    }
+
+    public function test_privileged_user_rejects_inactive_employee_assignment(): void
+    {
+        $user = $this->authorizedUser();
+
+        $inactiveEmployee = $this->createEmployee(
+            User::factory()->create(),
+            false,
+        );
+
+        Livewire::actingAs($user)
+            ->test(SalesWorkspace::class)
+            ->call('openLeadForm')
+            ->set(
+                'leadAssignedEmployeeId',
+                $inactiveEmployee->getKey(),
+            )
+            ->set(
+                'leadCompanyName',
+                'Inactive Assignment Studio',
+            )
+            ->set('leadContactPerson', 'Ajay Poonia')
+            ->set(
+                'leadEmail',
+                'inactive-assignment@example.com',
+            )
+            ->set('leadPhone', '9000002020')
+            ->set('leadEstimatedValue', '50000')
+            ->call('createLead')
+            ->assertHasErrors([
+                'leadAssignedEmployeeId',
+            ]);
+
+        $this->assertSame(
+            0,
+            Lead::query()->count(),
+        );
+
+        $this->assertSame(
+            0,
+            Customer::query()->count(),
+        );
     }
 
     public function test_existing_customer_is_reused_without_overwrite(): void
@@ -126,7 +417,7 @@ final class SalesWorkspaceLeadIntakeTest extends TestCase
                 'existing-phase12@example.com',
             )
             ->set('leadPhone', '9000001313')
-            ->set('leadEstimatedValue', '25000')
+            ->set('leadEstimatedValue', '30000')
             ->call('createLead')
             ->assertHasNoErrors();
 
@@ -178,7 +469,7 @@ final class SalesWorkspaceLeadIntakeTest extends TestCase
                 'conflict-phase12@example.com',
             )
             ->set('leadPhone', '9000001515')
-            ->set('leadEstimatedValue', '1000')
+            ->set('leadEstimatedValue', '30000')
             ->call('createLead')
             ->assertHasErrors(['leadEmail'])
             ->assertSet('showLeadForm', true)
@@ -338,6 +629,60 @@ final class SalesWorkspaceLeadIntakeTest extends TestCase
             ->forgetCachedPermissions();
 
         return $user->refresh();
+    }
+
+    private function salesUser(): User
+    {
+        $permissions = [
+            'leads.view',
+            'leads.create',
+            'leads.edit',
+        ];
+
+        foreach ($permissions as $permission) {
+            Permission::findOrCreate(
+                $permission,
+                'web',
+            );
+        }
+
+        $user = User::factory()->create();
+
+        $user->givePermissionTo($permissions);
+
+        app(PermissionRegistrar::class)
+            ->forgetCachedPermissions();
+
+        return $user->refresh();
+    }
+
+    /**
+     * @param array<string, mixed> $overrides
+     */
+    private function createEmployee(
+        User $user,
+        bool $active,
+        array $overrides = [],
+    ): Employee {
+        $sequence =
+            Employee::withTrashed()->count() + 1;
+
+        return Employee::query()->create(
+            array_merge([
+                'user_id' => $user->getKey(),
+                'employee_code' =>
+                    Employee::nextEmployeeCode(),
+                'full_name' =>
+                    "Sales Employee {$sequence}",
+                'email' =>
+                    "sales-employee-{$sequence}@example.com",
+                'phone' => sprintf(
+                    '8%09d',
+                    $sequence,
+                ),
+                'is_active' => $active,
+            ], $overrides),
+        );
     }
 
     private function viewerOnlyUser(): User

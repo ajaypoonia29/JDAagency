@@ -2,8 +2,9 @@
 
 namespace App\Filament\Resources\Leads\Schemas;
 
-use App\Models\Employee;
 use App\Models\Lead;
+use App\Support\CRM\LeadAssignmentAccess;
+use App\Support\CRM\LeadOptionCatalog;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -12,6 +13,7 @@ use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Illuminate\Database\Eloquent\Builder;
 
 class LeadForm
 {
@@ -70,13 +72,46 @@ class LeadForm
                                 TextInput::make('contact_person')
                                     ->required(),
 
-                                TextInput::make('designation'),
+                                Select::make('designation')
+                                    ->options(
+                                        fn (?Lead $record): array =>
+                                            LeadOptionCatalog::designations(
+                                                $record?->designation,
+                                            ),
+                                    )
+                                    ->searchable()
+                                    ->native(false),
 
-                                TextInput::make('industry'),
+                                Select::make('industry')
+                                    ->options(
+                                        fn (?Lead $record): array =>
+                                            LeadOptionCatalog::industries(
+                                                $record?->industry,
+                                            ),
+                                    )
+                                    ->searchable()
+                                    ->native(false),
 
-                                TextInput::make('business_type'),
+                                Select::make('business_type')
+                                    ->label('Business Type')
+                                    ->options(
+                                        fn (?Lead $record): array =>
+                                            LeadOptionCatalog::businessTypes(
+                                                $record?->business_type,
+                                            ),
+                                    )
+                                    ->searchable()
+                                    ->native(false),
 
-                                TextInput::make('company_size'),
+                                Select::make('company_size')
+                                    ->label('Company Size')
+                                    ->options(
+                                        fn (?Lead $record): array =>
+                                            LeadOptionCatalog::companySizes(
+                                                $record?->company_size,
+                                            ),
+                                    )
+                                    ->native(false),
 
                             ]),
                     ]),
@@ -111,15 +146,85 @@ class LeadForm
                             ->schema([
 
                                 Select::make('assigned_employee_id')
-                                    ->relationship('assignedEmployee', 'full_name')
+                                    ->label('Sales Executive')
+                                    ->default(
+                                        fn (): ?int =>
+                                            LeadAssignmentAccess::currentActiveEmployeeId(
+                                                auth()->user(),
+                                            ),
+                                    )
+                                    ->disabled(
+                                        fn (): bool =>
+                                            ! LeadAssignmentAccess::canManage(
+                                                auth()->user(),
+                                            ),
+                                    )
+                                    ->relationship(
+                                        name: 'assignedEmployee',
+                                        titleAttribute: 'full_name',
+                                        modifyQueryUsing:
+                                            fn (Builder $query): Builder =>
+                                                LeadAssignmentAccess::scopeEmployeeOptions(
+                                                    $query,
+                                                    auth()->user(),
+                                                ),
+                                    )
                                     ->searchable()
-                                    ->preload(),
+                                    ->preload()
+                                    ->required(
+                                        fn (): bool =>
+                                            ! LeadAssignmentAccess::canManage(
+                                                auth()->user(),
+                                            ),
+                                    )
+                                    ->helperText(
+                                        fn (): string =>
+                                            LeadAssignmentAccess::helpText(
+                                                auth()->user(),
+                                            ),
+                                    ),
 
-                                TextInput::make('lead_source'),
+                                Select::make('lead_source')
+                                    ->label('Lead Source')
+                                    ->options(
+                                        fn (?Lead $record): array =>
+                                            LeadOptionCatalog::leadSources(
+                                                $record?->lead_source,
+                                            ),
+                                    )
+                                    ->searchable()
+                                    ->native(false),
 
-                                TextInput::make('estimated_value')
-                                    ->numeric()
-                                    ->default(0),
+                                Select::make('estimated_value')
+                                    ->label('Estimated Value')
+                                    ->options(
+                                        fn (?Lead $record): array =>
+                                            LeadOptionCatalog::estimatedValues(
+                                                $record?->estimated_value,
+                                            ),
+                                    )
+                                    ->formatStateUsing(
+                                        static fn (
+                                            float|int|string|null $state,
+                                        ): ?string =>
+                                            $state === null
+                                            || $state === ''
+                                                ? null
+                                                : rtrim(
+                                                    rtrim(
+                                                        number_format(
+                                                            (float) $state,
+                                                            2,
+                                                            '.',
+                                                            '',
+                                                        ),
+                                                        '0',
+                                                    ),
+                                                    '.',
+                                                ),
+                                    )
+                                    ->default('0')
+                                    ->native(false),
 
                                 DatePicker::make('expected_closing_date'),
 

@@ -747,6 +747,29 @@
 
                     <label class="asw-field">
                         <span class="asw-field__label">
+                            Designation
+                        </span>
+                        <select
+                            wire:model="leadDesignation"
+                            class="asw-control"
+                        >
+                            <option value="">
+                                Select designation
+                            </option>
+
+                            @foreach ($leadDesignationOptions as $value => $label)
+                                <option value="{{ $value }}">
+                                    {{ $label }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('leadDesignation')
+                            <span class="asw-error">{{ $message }}</span>
+                        @enderror
+                    </label>
+
+                    <label class="asw-field">
+                        <span class="asw-field__label">
                             Email *
                         </span>
                         <input
@@ -809,24 +832,39 @@
                         <span class="asw-field__label">
                             Lead source
                         </span>
-                        <input
-                            type="text"
+                        <select
                             wire:model="leadSource"
                             class="asw-control"
-                        />
+                        >
+                            <option value="">
+                                Select lead source
+                            </option>
+
+                            @foreach ($leadSourceOptions as $value => $label)
+                                <option value="{{ $value }}">
+                                    {{ $label }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('leadSource')
+                            <span class="asw-error">{{ $message }}</span>
+                        @enderror
                     </label>
 
                     <label class="asw-field">
                         <span class="asw-field__label">
                             Estimated value
                         </span>
-                        <input
-                            type="number"
-                            min="0"
-                            step="0.01"
+                        <select
                             wire:model="leadEstimatedValue"
                             class="asw-control"
-                        />
+                        >
+                            @foreach ($leadEstimatedValueOptions as $value => $label)
+                                <option value="{{ $value }}">
+                                    {{ $label }}
+                                </option>
+                            @endforeach
+                        </select>
                         @error('leadEstimatedValue')
                             <span class="asw-error">{{ $message }}</span>
                         @enderror
@@ -836,40 +874,109 @@
                         <span class="asw-field__label">
                             Industry
                         </span>
-                        <input
-                            type="text"
+                        <select
                             wire:model="leadIndustry"
                             class="asw-control"
-                        />
+                        >
+                            <option value="">
+                                Select industry
+                            </option>
+
+                            @foreach ($leadIndustryOptions as $value => $label)
+                                <option value="{{ $value }}">
+                                    {{ $label }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('leadIndustry')
+                            <span class="asw-error">{{ $message }}</span>
+                        @enderror
                     </label>
 
                     <label class="asw-field">
                         <span class="asw-field__label">
                             Business type
                         </span>
-                        <input
-                            type="text"
+                        <select
                             wire:model="leadBusinessType"
                             class="asw-control"
-                        />
+                        >
+                            <option value="">
+                                Select business type
+                            </option>
+
+                            @foreach ($leadBusinessTypeOptions as $value => $label)
+                                <option value="{{ $value }}">
+                                    {{ $label }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('leadBusinessType')
+                            <span class="asw-error">{{ $message }}</span>
+                        @enderror
+                    </label>
+
+                    <label class="asw-field">
+                        <span class="asw-field__label">
+                            Company size
+                        </span>
+                        <select
+                            wire:model="leadCompanySize"
+                            class="asw-control"
+                        >
+                            <option value="">
+                                Select company size
+                            </option>
+
+                            @foreach ($leadCompanySizeOptions as $value => $label)
+                                <option value="{{ $value }}">
+                                    {{ $label }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('leadCompanySize')
+                            <span class="asw-error">{{ $message }}</span>
+                        @enderror
                     </label>
 
                     <label class="asw-field asw-span-2">
                         <span class="asw-field__label">
                             Assigned employee
                         </span>
-                        <select
-                            wire:model.number="leadAssignedEmployeeId"
-                            class="asw-control"
-                        >
-                            <option value="">Unassigned</option>
 
-                            @foreach ($leadEmployees as $employee)
-                                <option value="{{ $employee->getKey() }}">
-                                    {{ $employee->full_name }}
-                                </option>
-                            @endforeach
-                        </select>
+                        @if ($canManageLeadAssignments)
+                            <select
+                                wire:model.number="leadAssignedEmployeeId"
+                                class="asw-control"
+                            >
+                                <option value="">Unassigned</option>
+
+                                @foreach ($leadEmployees as $employee)
+                                    <option value="{{ $employee->getKey() }}">
+                                        {{ $employee->full_name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        @else
+                            <input
+                                type="text"
+                                value="{{ $leadAssignmentEmployee?->full_name ?: 'No active employee linked' }}"
+                                class="asw-control"
+                                readonly
+                            />
+
+                            <div
+                                class="asw-muted"
+                                style="margin-top: 0.35rem;"
+                            >
+                                @if ($leadAssignmentEmployee)
+                                    Assigned to your employee profile.
+                                @else
+                                    Ask an administrator to link and activate your employee profile.
+                                @endif
+                            </div>
+                        @endif
+
                         @error('leadAssignedEmployeeId')
                             <span class="asw-error">{{ $message }}</span>
                         @enderror

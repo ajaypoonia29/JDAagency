@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\CRM;
 
 use App\Models\Customer;
+use App\Models\Employee;
 use App\Models\Lead;
 use App\Models\Meeting;
 use App\Models\Quotation;
@@ -308,32 +309,64 @@ class CrmWorkflowIntegrityTest extends TestCase
 
     public function test_crm_policies_use_existing_permissions(): void
     {
-        $lead = app(LeadWorkflowService::class)
-            ->create($this->leadData());
-        $meeting = app(MeetingWorkflowService::class)
-            ->create($this->meetingData($lead));
-        $customer = $lead->convertedCustomer;
-
         $user = $this->userWithPermissions([
             'leads.view',
             'leads.edit',
             'customers.view',
         ]);
 
-        $this->assertTrue($user->can('viewAny', Lead::class));
-        $this->assertTrue($user->can('update', $lead));
-        $this->assertTrue(
-            $user->can('scheduleMeeting', $lead)
+        $employee = Employee::query()->create([
+            'user_id' => $user->getKey(),
+            'employee_code' =>
+                Employee::nextEmployeeCode(),
+            'full_name' => 'CRM Policy Employee',
+            'email' =>
+                'crm-policy-employee@example.com',
+            'phone' => '9888888888',
+            'is_active' => true,
+        ]);
+
+        $this->actingAs($user);
+
+        $lead = app(LeadWorkflowService::class)
+            ->create($this->leadData());
+
+        $meeting = app(MeetingWorkflowService::class)
+            ->create($this->meetingData($lead));
+
+        $customer = $lead->convertedCustomer;
+
+        $this->assertSame(
+            $employee->getKey(),
+            $lead->assigned_employee_id,
         );
+
         $this->assertTrue(
-            $user->can('viewAny', Meeting::class)
+            $user->can('viewAny', Lead::class),
         );
-        $this->assertTrue($user->can('update', $meeting));
+
         $this->assertTrue(
-            $user->can('view', $customer)
+            $user->can('update', $lead),
         );
+
+        $this->assertTrue(
+            $user->can('scheduleMeeting', $lead),
+        );
+
+        $this->assertTrue(
+            $user->can('viewAny', Meeting::class),
+        );
+
+        $this->assertTrue(
+            $user->can('update', $meeting),
+        );
+
+        $this->assertTrue(
+            $user->can('view', $customer),
+        );
+
         $this->assertFalse(
-            $user->can('update', $customer)
+            $user->can('update', $customer),
         );
     }
 

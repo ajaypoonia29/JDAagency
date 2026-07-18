@@ -8,6 +8,7 @@ use App\Filament\Resources\Leads\Pages\ListLeads;
 use App\Filament\Resources\Leads\Schemas\LeadForm;
 use App\Filament\Resources\Leads\Tables\LeadsTable;
 use App\Models\Lead;
+use App\Support\CRM\LeadAssignmentAccess;
 use BackedEnum;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
@@ -28,9 +29,11 @@ class LeadResource extends Resource
 
     protected static ?int $navigationSort = 20;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedUserGroup;
+    protected static string|BackedEnum|null $navigationIcon =
+        Heroicon::OutlinedUserGroup;
 
-    protected static ?string $recordTitleAttribute = 'company_name';
+    protected static ?string $recordTitleAttribute =
+        'company_name';
 
     public static function form(Schema $schema): Schema
     {
@@ -56,11 +59,24 @@ class LeadResource extends Resource
         ];
     }
 
+    public static function getEloquentQuery(): Builder
+    {
+        return LeadAssignmentAccess::scopeLeadQuery(
+            parent::getEloquentQuery(),
+            auth()->user(),
+        );
+    }
+
     public static function getRecordRouteBindingEloquentQuery(): Builder
     {
-        return parent::getRecordRouteBindingEloquentQuery()
+        $query = parent::getRecordRouteBindingEloquentQuery()
             ->withoutGlobalScopes([
                 SoftDeletingScope::class,
             ]);
+
+        return LeadAssignmentAccess::scopeLeadQuery(
+            $query,
+            auth()->user(),
+        );
     }
 }

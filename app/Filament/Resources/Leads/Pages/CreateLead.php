@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Leads\Pages;
 
 use App\Filament\Resources\Leads\LeadResource;
 use App\Services\CRM\LeadWorkflowService;
+use App\Support\CRM\LeadAssignmentAccess;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Database\Eloquent\Model;
@@ -11,6 +12,19 @@ use Illuminate\Database\Eloquent\Model;
 class CreateLead extends CreateRecord
 {
     protected static string $resource = LeadResource::class;
+
+    /**
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    protected function mutateFormDataBeforeCreate(
+        array $data,
+    ): array {
+        return LeadAssignmentAccess::enforceWriteAssignment(
+            $data,
+            auth()->user(),
+        );
+    }
 
     protected function handleRecordCreation(array $data): Model
     {
