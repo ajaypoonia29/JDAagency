@@ -41,7 +41,7 @@ class PaymentForm
                                     ->default(now())
                                     ->required(),
 
-                                
+
 
 Select::make('quotation_id')
     ->label('Quotation')
@@ -78,7 +78,7 @@ $set('amount', $outstanding);
 })
     ->required(),
 
-                                
+
 Select::make('customer_id')
     ->label('Customer')
     ->relationship('customer', 'display_name')
