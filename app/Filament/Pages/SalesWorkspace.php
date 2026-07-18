@@ -581,11 +581,27 @@ class SalesWorkspace extends Page
 
     public function completeMeeting(
         int $meetingId,
-        string $outcome,
+        string $outcomeKey,
     ): void {
         $lead = $this->selectedLeadOrFail();
 
         Gate::authorize('update', $lead);
+
+        $outcomes = [
+            'interested' => 'Interested',
+            'follow_up_required' => 'Follow-up Required',
+            'quotation_required' => 'Quotation Required',
+            'not_interested' => 'Not Interested',
+        ];
+
+        // Continue accepting the previous display labels for
+        // programmatic callers while browser actions use tokens.
+        $outcome = $outcomes[$outcomeKey] ?? $outcomeKey;
+
+        abort_unless(
+            in_array($outcome, array_values($outcomes), true),
+            422,
+        );
 
         $meeting = $lead->meetings
             ->firstWhere('id', $meetingId);
@@ -598,6 +614,10 @@ class SalesWorkspace extends Page
                 'status' => 'Completed',
                 'outcome' => $outcome,
             ],
+        );
+
+        $this->dispatch(
+            'sales-workspace-updated',
         );
 
         $this->notifySuccess(

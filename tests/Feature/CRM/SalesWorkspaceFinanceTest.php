@@ -627,6 +627,61 @@ final class SalesWorkspaceFinanceTest extends TestCase
             ->assertSee($payment->payment_no)
             ->assertSee('Refund the credited scope value.')
             ->assertSee('Download Refund');
+
+        $invoice->forceFill([
+            'email_sent' => true,
+            'email_sent_at' => now(),
+            'last_sent_to' =>
+                'timeline-recipient@example.test',
+        ])->saveQuietly();
+
+        $timelineLead = $lead->fresh([
+            'meetings',
+            'quotations.payments',
+            'invoices.creditNotes',
+            'invoices.refunds',
+        ]);
+
+        $this->assertInstanceOf(
+            Lead::class,
+            $timelineLead,
+        );
+
+        $timeline = collect(
+            app(SalesJourneyService::class)
+                ->timeline($timelineLead),
+        );
+
+        $titles = $timeline
+            ->pluck('title')
+            ->all();
+
+        $this->assertContains(
+            'Invoice sent',
+            $titles,
+        );
+        $this->assertContains(
+            'Credit note issued',
+            $titles,
+        );
+        $this->assertContains(
+            'Refund processed',
+            $titles,
+        );
+        $this->assertContains(
+            'Payment received',
+            $titles,
+        );
+
+        $paymentEvent = $timeline
+            ->firstWhere('type', 'payment');
+
+        $this->assertIsArray($paymentEvent);
+        $this->assertTrue(
+            $payment->created_at->equalTo(
+                $paymentEvent['at'],
+            ),
+        );
     }
 
     public function test_workspace_hides_and_blocks_adjustment_actions_without_permissions(): void

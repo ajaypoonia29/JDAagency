@@ -435,6 +435,13 @@ final class SalesJourneyService
      */
     public function timeline(Lead $lead): array
     {
+        $lead->loadMissing([
+            'meetings',
+            'quotations.payments',
+            'invoices.creditNotes',
+            'invoices.refunds',
+        ]);
+
         $events = collect();
 
         $events->push([
@@ -454,11 +461,12 @@ final class SalesJourneyService
                     strtolower((string) $meeting->status),
                 ),
                 'detail' => sprintf(
-                    '%s · %s',
+                    '%s ' . "\u{00B7}" . ' %s',
                     $meeting->meeting_title,
                     $meeting->outcome,
                 ),
-                'at' => $meeting->updated_at ?: $meeting->created_at,
+                'at' => $meeting->updated_at
+                    ?: $meeting->created_at,
                 'type' => 'meeting',
             ]);
         }
@@ -470,11 +478,16 @@ final class SalesJourneyService
                     strtolower((string) $quotation->status),
                 ),
                 'detail' => sprintf(
-                    '%s · ₹%s',
+                    '%s ' . "\u{00B7}" . ' '
+                    . "\u{20B9}" . '%s',
                     $quotation->quotation_code,
-                    number_format((float) $quotation->grand_total, 2),
+                    number_format(
+                        (float) $quotation->grand_total,
+                        2,
+                    ),
                 ),
-                'at' => $quotation->updated_at ?: $quotation->created_at,
+                'at' => $quotation->updated_at
+                    ?: $quotation->created_at,
                 'type' => 'quotation',
             ]);
 
@@ -482,12 +495,16 @@ final class SalesJourneyService
                 $events->push([
                     'title' => 'Payment received',
                     'detail' => sprintf(
-                        '%s · ₹%s',
+                        '%s ' . "\u{00B7}" . ' '
+                        . "\u{20B9}" . '%s',
                         $payment->payment_no,
-                        number_format((float) $payment->amount, 2),
+                        number_format(
+                            (float) $payment->amount,
+                            2,
+                        ),
                     ),
-                    'at' => $payment->payment_date
-                        ?: $payment->created_at,
+                    'at' => $payment->created_at
+                        ?: $payment->payment_date,
                     'type' => 'payment',
                 ]);
             }
@@ -500,13 +517,77 @@ final class SalesJourneyService
                     strtolower((string) $invoice->status),
                 ),
                 'detail' => sprintf(
-                    '%s · Balance ₹%s',
+                    '%s ' . "\u{00B7}"
+                    . ' Balance ' . "\u{20B9}" . '%s',
                     $invoice->invoice_no,
-                    number_format((float) $invoice->balance_due, 2),
+                    number_format(
+                        (float) $invoice->balance_due,
+                        2,
+                    ),
                 ),
-                'at' => $invoice->updated_at ?: $invoice->created_at,
+                'at' => $invoice->issued_at
+                    ?: $invoice->updated_at
+                    ?: $invoice->created_at,
                 'type' => 'invoice',
             ]);
+
+            if ($invoice->email_sent_at) {
+                $events->push([
+                    'title' => 'Invoice sent',
+                    'detail' => sprintf(
+                        '%s ' . "\u{00B7}" . ' %s',
+                        $invoice->invoice_no,
+                        $invoice->last_sent_to
+                            ?: 'Recipient unavailable',
+                    ),
+                    'at' => $invoice->email_sent_at,
+                    'type' => 'invoice_delivery',
+                ]);
+            }
+
+            foreach ($invoice->creditNotes as $creditNote) {
+                $events->push([
+                    'title' => sprintf(
+                        'Credit note %s',
+                        strtolower(
+                            (string) $creditNote->status,
+                        ),
+                    ),
+                    'detail' => sprintf(
+                        '%s ' . "\u{00B7}" . ' '
+                        . "\u{20B9}" . '%s',
+                        $creditNote->credit_note_no,
+                        number_format(
+                            (float) $creditNote->grand_total,
+                            2,
+                        ),
+                    ),
+                    'at' => $creditNote->issued_at
+                        ?: $creditNote->created_at,
+                    'type' => 'credit_note',
+                ]);
+            }
+
+            foreach ($invoice->refunds as $refund) {
+                $events->push([
+                    'title' => sprintf(
+                        'Refund %s',
+                        strtolower((string) $refund->status),
+                    ),
+                    'detail' => sprintf(
+                        '%s ' . "\u{00B7}" . ' '
+                        . "\u{20B9}" . '%s',
+                        $refund->refund_no,
+                        number_format(
+                            (float) $refund->amount,
+                            2,
+                        ),
+                    ),
+                    'at' => $refund->processed_at
+                        ?: $refund->created_at,
+                    'type' => 'refund',
+                ]);
+            }
         }
 
         return $events
@@ -517,7 +598,6 @@ final class SalesJourneyService
             ->values()
             ->all();
     }
-
     public function latestMeeting(Lead $lead): ?Meeting
     {
         return $lead->meetings

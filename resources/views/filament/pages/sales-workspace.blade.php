@@ -1350,17 +1350,22 @@
 
                                         @if (in_array($meeting->status, ['Scheduled', 'Confirmed', 'Rescheduled'], true))
                                             <div class="asw-inline-actions" style="margin-top: 0.75rem;">
-                                                @foreach (['Interested', 'Follow-up Required', 'Quotation Required', 'Not Interested'] as $outcome)
+                                                @foreach ([
+                                                    'interested' => 'Interested',
+                                                    'follow_up_required' => 'Follow-up Required',
+                                                    'quotation_required' => 'Quotation Required',
+                                                    'not_interested' => 'Not Interested',
+                                                ] as $outcomeKey => $outcomeLabel)
                                                     <button
                                                         type="button"
-                                                        wire:click='completeMeeting({{ $meeting->getKey() }}, @js($outcome))'
+                                                        wire:click="completeMeeting({{ $meeting->getKey() }}, '{{ $outcomeKey }}')"
                                                         wire:loading.attr="disabled"
                                                         wire:target="completeMeeting"
-                                                        wire:confirm="Complete this meeting as {{ $outcome }}?"
+                                                        wire:confirm="Complete this meeting as {{ $outcomeLabel }}?"
                                                         class="asw-control"
                                                         style="min-height: auto; width: auto; padding: 0.45rem 0.6rem; cursor: pointer;"
                                                     >
-                                                        {{ $outcome }}
+                                                        {{ $outcomeLabel }}
                                                     </button>
                                                 @endforeach
                                             </div>

@@ -48,6 +48,14 @@ class SalesWorkspaceQuotationServiceTest extends TestCase
         $this->assertSame('0.00', $quotation->total_paid);
         $this->assertSame('2017.80', $quotation->balance_due);
         $this->assertSame('Unpaid', $quotation->payment_status);
+        $this->assertSame(
+            'Thank you for your interest.',
+            $quotation->customer_notes,
+        );
+        $this->assertSame(
+            'Workspace test quotation.',
+            $quotation->internal_notes,
+        );
 
         $item = $quotation->items()->firstOrFail();
 

@@ -55,9 +55,12 @@ final class SalesWorkspaceUatRegressionTest extends TestCase
             ->call(
                 'completeMeeting',
                 $meeting->getKey(),
-                'Quotation Required',
+                'quotation_required',
             )
             ->assertHasNoErrors()
+            ->assertDispatched(
+                'sales-workspace-updated',
+            )
             ->assertSee('Meeting Completed')
             ->assertSee('Quotation Required');
 
@@ -95,20 +98,25 @@ final class SalesWorkspaceUatRegressionTest extends TestCase
         $this->assertIsString($workspaceView);
 
         $this->assertStringContainsString(
-            "wire:click='completeMeeting("
-            . '{{ $meeting->getKey() }}, '
-            . '@js($outcome))' . "'",
+            "'quotation_required' => 'Quotation Required'",
+            $workspaceView,
+        );
+
+        $this->assertStringContainsString(
+            'wire:click="completeMeeting(',
+            $workspaceView,
+        );
+
+        $this->assertStringContainsString(
+            '$outcomeKey',
             $workspaceView,
         );
 
         $this->assertStringNotContainsString(
-            'wire:click="completeMeeting('
-            . '{{ $meeting->getKey() }}, '
-            . '@js($outcome))"',
+            '@js($outcome)',
             $workspaceView,
         );
     }
-
     public function test_finance_workspace_refreshes_after_sibling_event(): void
     {
         $user = $this->authorizedUser();
