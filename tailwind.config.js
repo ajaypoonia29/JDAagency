@@ -4,10 +4,20 @@ import forms from '@tailwindcss/forms';
 /** @type {import('tailwindcss').Config} */
 export default {
     content: [
-        './vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php',
-        './storage/framework/views/*.php',
-        './resources/views/**/*.blade.php',
-    ],
+    './app/Filament/**/*.php',
+
+    './app/Livewire/**/*.php',
+
+    './resources/**/*.blade.php',
+
+    './vendor/filament/**/*.blade.php',
+
+    './vendor/filament/**/*.php',
+
+    './vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php',
+
+    './storage/framework/views/*.php',
+],
 
     theme: {
         extend: {
