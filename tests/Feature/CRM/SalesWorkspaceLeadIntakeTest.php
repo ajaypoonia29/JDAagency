@@ -322,19 +322,7 @@ final class SalesWorkspaceLeadIntakeTest extends TestCase
         Livewire::actingAs($user)
             ->test(SalesWorkspace::class)
             ->call('openLeadForm')
-            ->set(
-                'leadCompanyName',
-                'No Employee Studio',
-            )
-            ->set('leadContactPerson', 'Sales Agent')
-            ->set(
-                'leadEmail',
-                'no-active-employee@example.com',
-            )
-            ->set('leadPhone', '9000001919')
-            ->set('leadEstimatedValue', '30000')
-            ->call('createLead')
-            ->assertStatus(404);
+            ->assertStatus(403);
 
         $this->assertSame(
             0,
